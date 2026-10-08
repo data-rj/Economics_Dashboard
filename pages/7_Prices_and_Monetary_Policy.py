@@ -31,6 +31,19 @@ render_line_section(
     y_title="YoY % change",
 )
 
+data, errors = loader.load_breakeven_inflation()
+render_line_section(
+    "Breakeven Inflation Rates",
+    "breakeven_inflation",
+    data,
+    errors,
+    freq="D",
+    unit="pct",
+    description="Market-implied inflation expectations, derived from Treasury vs. TIPS yields.",
+    zero_line=True,
+    y_title="%",
+)
+
 data, errors = loader.load_interest_rates()
 render_line_section(
     "Interest Rates",
