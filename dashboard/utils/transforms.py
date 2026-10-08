@@ -38,6 +38,8 @@ def trailing_sum(series: pd.Series, window: int) -> pd.Series:
 
 def resample_mean(series: pd.Series, rule: str) -> pd.Series:
     """Downsample (e.g. daily -> weekly) by averaging within each bucket."""
+    if series.empty:
+        return series
     return series.resample(rule).mean()
 
 

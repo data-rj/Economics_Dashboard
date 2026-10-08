@@ -369,6 +369,13 @@ def load_pce_deflator() -> tuple[dict[str, pd.Series], dict[str, str]]:
     return data, {"PCE Deflator YoY%": e1, "Core PCE Deflator YoY%": e2, "Trimmed Mean PCE YoY%": e3}
 
 
+def load_breakeven_inflation() -> tuple[dict[str, pd.Series], dict[str, str]]:
+    five_yr, e1 = _fetch(s.BREAKEVEN_5Y)
+    ten_yr, e2 = _fetch(s.BREAKEVEN_10Y)
+    data = {"5-Year Breakeven": five_yr, "10-Year Breakeven": ten_yr}
+    return data, {"5-Year Breakeven": e1, "10-Year Breakeven": e2}
+
+
 def load_interest_rates() -> tuple[dict[str, pd.Series], dict[str, str]]:
     ffr, e1 = _fetch(s.FED_FUNDS_RATE_DAILY)
     t10y, e2 = _fetch(s.TREASURY_10Y)
