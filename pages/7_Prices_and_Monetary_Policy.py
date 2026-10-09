@@ -1,10 +1,15 @@
 import streamlit as st
 
 from dashboard.components.controls import render_dual_axis_section, render_line_section
+from dashboard.components.kpi import kpi_row
 from dashboard.config import series as s
 from dashboard.data import loader
 
 st.title("Prices & Monetary Policy")
+
+kpi_row(loader.load_prices_kpis())
+
+st.divider()
 
 data, errors = loader.load_cpi()
 render_line_section(

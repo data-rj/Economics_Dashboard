@@ -5,10 +5,15 @@ from dashboard.components.controls import (
     render_line_section,
     render_stacked_bar_section,
 )
+from dashboard.components.kpi import kpi_row
 from dashboard.config import series as s
 from dashboard.data import loader
 
 st.title("Public & Private Investment")
+
+kpi_row(loader.load_investment_kpis())
+
+st.divider()
 
 data, errors = loader.load_fixed_investment_yoy()
 render_line_section(

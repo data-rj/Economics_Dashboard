@@ -1,10 +1,15 @@
 import streamlit as st
 
 from dashboard.components.controls import render_area_line_section, render_line_section
+from dashboard.components.kpi import kpi_row
 from dashboard.config import series as s
 from dashboard.data import loader
 
 st.title("Government")
+
+kpi_row(loader.load_government_kpis())
+
+st.divider()
 
 data, errors = loader.load_gov_consumption_yoy()
 render_line_section(

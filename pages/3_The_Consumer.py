@@ -1,10 +1,15 @@
 import streamlit as st
 
 from dashboard.components.controls import render_line_section
+from dashboard.components.kpi import kpi_row
 from dashboard.config import series as s
 from dashboard.data import loader
 
 st.title("The Consumer")
+
+kpi_row(loader.load_consumer_kpis())
+
+st.divider()
 
 data, errors = loader.load_pce_income_savings()
 render_line_section(

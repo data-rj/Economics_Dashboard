@@ -12,7 +12,7 @@ import pandas as pd
 from dashboard.config import series as s
 from dashboard.data.fred_client import safe_fetch_series
 from dashboard.data.nowcasts import get_nyfed_nowcast
-from dashboard.utils.formatting import quarter_end_month_label
+from dashboard.utils.formatting import latest_value_and_period, quarter_end_month_label
 from dashboard.utils.transforms import (
     diff,
     drop_future,
@@ -29,6 +29,21 @@ START = "1990-01-01"
 
 def _fetch(series_id: str) -> tuple[pd.Series, str | None]:
     return safe_fetch_series(series_id, START)
+
+
+def kpi_from_series(label: str, series: pd.Series, freq: str, unit: str, error: str | None) -> dict:
+    """Build one kpi_row() item from an already-transformed series — used
+    to turn page-top KPI tiles out of the same data a page's charts fetch,
+    without issuing any extra requests.
+    """
+    value, period = latest_value_and_period(series, freq)
+    return {
+        "label": label,
+        "value": value,
+        "unit": unit,
+        "period": period,
+        "error": error if value is None else None,
+    }
 
 
 # ---------------- Economic Overview ----------------
@@ -128,6 +143,38 @@ def load_output_gap() -> tuple[dict[str, pd.Series], dict[str, str]]:
 
 # ---------------- Labor Market ----------------
 
+def load_labor_kpis() -> list[dict]:
+    unemployment_data, unemployment_errors = load_unemployment_rates()
+    change, _avg3, payrolls_err = load_payrolls_change()
+    ahe_data, ahe_errors = load_avg_hourly_earnings()
+    claims_data, claims_errors = load_jobless_claims()
+
+    return [
+        kpi_from_series(
+            "Unemployment Rate (U-3)",
+            unemployment_data["Unemployment Rate (U-3)"],
+            "M",
+            "pct",
+            unemployment_errors["Unemployment Rate (U-3)"],
+        ),
+        kpi_from_series("Payrolls, Monthly Change", change, "M", "thousands", payrolls_err),
+        kpi_from_series(
+            "Avg Hourly Earnings YoY%",
+            ahe_data["Avg Hourly Earnings YoY%"],
+            "M",
+            "pct",
+            ahe_errors["Avg Hourly Earnings YoY%"],
+        ),
+        kpi_from_series(
+            "Initial Jobless Claims",
+            claims_data["Initial Jobless Claims"],
+            "W",
+            "thousands",
+            claims_errors["Initial Jobless Claims"],
+        ),
+    ]
+
+
 def load_unemployment_rates() -> tuple[dict[str, pd.Series], dict[str, str]]:
     unrate, e1 = _fetch(s.UNRATE)
     u6, e2 = _fetch(s.U6RATE)
@@ -185,6 +232,39 @@ def load_lfpr_by_age() -> tuple[dict[str, pd.Series], dict[str, str]]:
 
 # ---------------- The Consumer ----------------
 
+def load_consumer_kpis() -> list[dict]:
+    pce_data, pce_errors = load_pce_income_savings()
+    retail_data, retail_errors = load_retail_sales()
+    dsr_data, dsr_errors = load_household_dsr()
+
+    return [
+        kpi_from_series(
+            "Real PCE YoY%", pce_data["Real PCE YoY%"], "M", "pct", pce_errors["Real PCE YoY%"]
+        ),
+        kpi_from_series(
+            "Personal Savings Rate",
+            pce_data["Personal Savings Rate"],
+            "M",
+            "pct",
+            pce_errors["Personal Savings Rate"],
+        ),
+        kpi_from_series(
+            "Retail Sales YoY%",
+            retail_data["Retail Sales YoY%"],
+            "M",
+            "pct",
+            retail_errors["Retail Sales YoY%"],
+        ),
+        kpi_from_series(
+            "Household Debt Service Ratio",
+            dsr_data["Total Debt Service Ratio"],
+            "Q",
+            "pct",
+            dsr_errors["Total Debt Service Ratio"],
+        ),
+    ]
+
+
 def load_pce_income_savings() -> tuple[dict[str, pd.Series], dict[str, str]]:
     pce, e1 = _fetch(s.REAL_PCE)
     dpi, e2 = _fetch(s.REAL_DPI)
@@ -235,6 +315,37 @@ def load_delinquencies() -> tuple[dict[str, pd.Series], dict[str, str]]:
 
 # ---------------- Corporate America ----------------
 
+def load_corporate_kpis() -> list[dict]:
+    profits_data, profits_errors = load_corporate_profits_yoy()
+    indpro_data, indpro_errors = load_industrial_production()
+    spreads_data, spreads_errors = load_bond_spreads()
+
+    capacity_label, capacity_series, capacity_unit = indpro_data["right"]
+
+    return [
+        kpi_from_series(
+            "Corporate Profits YoY%",
+            profits_data["Corporate Profits YoY%"],
+            "Q",
+            "pct",
+            profits_errors["Corporate Profits YoY%"],
+        ),
+        kpi_from_series(
+            "Industrial Production YoY%",
+            indpro_data["left"][1],
+            "M",
+            "pct",
+            indpro_errors["Industrial Production YoY%"],
+        ),
+        kpi_from_series(
+            capacity_label, capacity_series, "M", capacity_unit, indpro_errors["Capacity Utilization"]
+        ),
+        kpi_from_series(
+            "Baa/BBB Spread", spreads_data["Baa/BBB"], "D", "pct", spreads_errors["Baa/BBB"]
+        ),
+    ]
+
+
 def load_corporate_profits_yoy() -> tuple[dict[str, pd.Series], dict[str, str]]:
     cp, e1 = _fetch(s.CORPORATE_PROFITS)
     return {"Corporate Profits YoY%": yoy_pct(cp, "Q")}, {"Corporate Profits YoY%": e1}
@@ -275,6 +386,37 @@ def load_corporate_delinquency_chargeoff() -> tuple[dict[str, pd.Series], dict[s
 
 
 # ---------------- Investment ----------------
+
+def load_investment_kpis() -> list[dict]:
+    fixed_data, fixed_errors = load_fixed_investment_yoy()
+    housing_data, housing_errors = load_housing()
+    inventory_data, inventory_errors = load_inventory_ratio()
+
+    ratio_label, ratio_series, ratio_unit = inventory_data["right"]
+
+    return [
+        kpi_from_series(
+            "Nonresidential Fixed Investment YoY%",
+            fixed_data["Nonresidential Fixed Investment YoY%"],
+            "Q",
+            "pct",
+            fixed_errors["Nonresidential Fixed Investment YoY%"],
+        ),
+        kpi_from_series(
+            "Residential Fixed Investment YoY%",
+            fixed_data["Residential Fixed Investment YoY%"],
+            "Q",
+            "pct",
+            fixed_errors["Residential Fixed Investment YoY%"],
+        ),
+        kpi_from_series(
+            "Housing Starts", housing_data["Housing Starts"], "M", "thousands", housing_errors["Housing Starts"]
+        ),
+        kpi_from_series(
+            ratio_label, ratio_series, "M", ratio_unit, inventory_errors["Inventory-to-Sales Ratio"]
+        ),
+    ]
+
 
 def load_fixed_investment_yoy() -> tuple[dict[str, pd.Series], dict[str, str]]:
     nonres, e1 = _fetch(s.NONRESIDENTIAL_FIXED_INVESTMENT_REAL)
@@ -317,6 +459,30 @@ def load_inventory_ratio() -> tuple[dict[str, pd.Series], dict[str, str]]:
 
 # ---------------- Government ----------------
 
+def load_government_kpis() -> list[dict]:
+    gov_data, gov_errors = load_gov_consumption_yoy()
+    deficit_debt_data, deficit_debt_errors = load_federal_deficit_debt()
+
+    deficit_label, deficit_series, deficit_unit = deficit_debt_data["area"]
+    debt_label, debt_series, debt_unit = deficit_debt_data["line"]
+
+    return [
+        kpi_from_series(
+            "Gov't Consumption & Investment YoY%",
+            gov_data["Gov't Consumption & Investment YoY%"],
+            "Q",
+            "pct",
+            gov_errors["Gov't Consumption & Investment YoY%"],
+        ),
+        kpi_from_series(
+            deficit_label, deficit_series, "M", deficit_unit, deficit_debt_errors["Federal Deficit (TTM)"]
+        ),
+        kpi_from_series(
+            debt_label, debt_series, "Q", debt_unit, deficit_debt_errors["Federal Debt (% of GDP)"]
+        ),
+    ]
+
+
 def load_gov_consumption_yoy() -> tuple[dict[str, pd.Series], dict[str, str]]:
     gov, e1 = _fetch(s.GOV_CONSUMPTION_INVESTMENT_REAL)
     return {"Gov't Consumption & Investment YoY%": yoy_pct(gov, "Q")}, {
@@ -345,6 +511,37 @@ def load_federal_deficit_debt() -> tuple[dict, dict[str, str]]:
 
 
 # ---------------- Prices & Monetary Policy ----------------
+
+def load_prices_kpis() -> list[dict]:
+    cpi_data, cpi_errors = load_cpi()
+    pce_data, pce_errors = load_pce_deflator()
+    rates_data, rates_errors = load_interest_rates()
+
+    return [
+        kpi_from_series("CPI YoY%", cpi_data["CPI YoY%"], "M", "pct", cpi_errors["CPI YoY%"]),
+        kpi_from_series(
+            "Core PCE Deflator YoY%",
+            pce_data["Core PCE Deflator YoY%"],
+            "M",
+            "pct",
+            pce_errors["Core PCE Deflator YoY%"],
+        ),
+        kpi_from_series(
+            "Fed Funds Rate",
+            rates_data["Fed Funds Rate (Weekly Avg)"],
+            "W",
+            "pct",
+            rates_errors["Fed Funds Rate (Weekly Avg)"],
+        ),
+        kpi_from_series(
+            "10Y-2Y Treasury Spread",
+            rates_data["10Y-2Y Spread (Weekly Avg)"],
+            "W",
+            "pct",
+            rates_errors["10Y-2Y Spread (Weekly Avg)"],
+        ),
+    ]
+
 
 def load_cpi() -> tuple[dict[str, pd.Series], dict[str, str]]:
     cpi, e1 = _fetch(s.CPI)

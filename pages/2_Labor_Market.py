@@ -1,10 +1,15 @@
 import streamlit as st
 
 from dashboard.components.controls import render_line_section, render_stacked_bar_section
+from dashboard.components.kpi import kpi_row
 from dashboard.config import series as s
 from dashboard.data import loader
 
 st.title("Labor Market")
+
+kpi_row(loader.load_labor_kpis())
+
+st.divider()
 
 data, errors = loader.load_unemployment_rates()
 render_line_section(
