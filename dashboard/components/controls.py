@@ -10,6 +10,7 @@ from dashboard.components.charts import (
     multi_line_chart,
     stacked_bar_chart,
 )
+from dashboard.config.sources import fred_source_caption
 from dashboard.utils.daterange import clip_to_range, range_control
 
 
@@ -36,6 +37,13 @@ def show_data_errors(errors: dict[str, str]) -> None:
                 st.caption(f"**{label}**: {err}")
 
 
+def show_source_caption(sources: list[str] | str | None) -> None:
+    if not sources:
+        return
+    text = sources if isinstance(sources, str) else fred_source_caption(sources)
+    st.caption(text)
+
+
 def render_line_section(
     title: str,
     key: str,
@@ -46,6 +54,7 @@ def render_line_section(
     description: str | None = None,
     zero_line: bool = False,
     y_title: str | None = None,
+    sources: list[str] | str | None = None,
 ) -> None:
     with st.container(border=True):
         range_label = chart_header(title, key, description)
@@ -55,6 +64,7 @@ def render_line_section(
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
             st.info("No data available.")
+        show_source_caption(sources)
         show_data_errors(errors)
 
 
@@ -68,6 +78,7 @@ def render_stacked_bar_section(
     description: str | None = None,
     y_title: str | None = None,
     total_line: tuple[str, pd.Series] | None = None,
+    sources: list[str] | str | None = None,
 ) -> None:
     with st.container(border=True):
         range_label = chart_header(title, key, description)
@@ -81,6 +92,7 @@ def render_stacked_bar_section(
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
             st.info("No data available.")
+        show_source_caption(sources)
         show_data_errors(errors)
 
 
@@ -93,6 +105,7 @@ def render_dual_axis_section(
     description: str | None = None,
     left_title: str | None = None,
     right_title: str | None = None,
+    sources: list[str] | str | None = None,
 ) -> None:
     with st.container(border=True):
         range_label = chart_header(title, key, description)
@@ -107,6 +120,7 @@ def render_dual_axis_section(
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
             st.info("No data available.")
+        show_source_caption(sources)
         show_data_errors(errors)
 
 
@@ -119,6 +133,7 @@ def render_area_line_section(
     description: str | None = None,
     area_title: str | None = None,
     line_title: str | None = None,
+    sources: list[str] | str | None = None,
 ) -> None:
     with st.container(border=True):
         range_label = chart_header(title, key, description)
@@ -133,4 +148,5 @@ def render_area_line_section(
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
             st.info("No data available.")
+        show_source_caption(sources)
         show_data_errors(errors)
