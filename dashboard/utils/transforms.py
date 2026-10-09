@@ -57,6 +57,8 @@ def drop_future(series: pd.Series, as_of: pd.Timestamp | None = None) -> pd.Seri
     today). Used for CBO Potential GDP, which is published with a forecast
     horizon extending years into the future.
     """
+    if series.empty:
+        return series
     cutoff = as_of if as_of is not None else pd.Timestamp.today().normalize()
     return series[series.index <= cutoff]
 
