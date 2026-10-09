@@ -1,24 +1,25 @@
-"""Per-chart date-range control: defaults to 5 years, expandable to max or
-shrinkable to 1 year, per the dashboard spec.
+"""Per-chart date-range control: defaults to 5 years, expandable to 10Y,
+20Y, or max, or shrinkable to 1 year, per the dashboard spec.
 """
 from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
 
-RANGE_OPTIONS = {"1Y": 1, "5Y": 5, "Max": None}
+RANGE_OPTIONS = {"1Y": 1, "5Y": 5, "10Y": 10, "20Y": 20, "Max": None}
 DEFAULT_RANGE = "5Y"
+_RANGE_LABELS = list(RANGE_OPTIONS.keys())
 
 
 def range_control(key: str) -> str:
-    """Render a compact segmented control and return the selected label."""
-    return st.segmented_control(
+    """Render a compact dropdown and return the selected label."""
+    return st.selectbox(
         "Range",
-        options=list(RANGE_OPTIONS.keys()),
-        default=DEFAULT_RANGE,
+        options=_RANGE_LABELS,
+        index=_RANGE_LABELS.index(DEFAULT_RANGE),
         key=f"range_{key}",
         label_visibility="collapsed",
-    ) or DEFAULT_RANGE
+    )
 
 
 def clip_to_range(series: pd.Series, range_label: str) -> pd.Series:

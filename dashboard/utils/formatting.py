@@ -68,7 +68,13 @@ def legend_label(name: str, series: pd.Series, freq: str, unit: str) -> str:
 
 
 def latest_value_and_period(series: pd.Series, freq: str) -> tuple[float | None, str | None]:
+    """Latest non-null value + a KPI-tile period label. Quarterly series use
+    the quarter-END month (see quarter_end_month_label) rather than
+    format_period's "Q3 2025" style, matching the GDP KPI tiles.
+    """
     clean = series.dropna()
     if clean.empty:
         return None, None
-    return clean.iloc[-1], format_period(clean.index[-1], freq)
+    last_date = clean.index[-1]
+    period = quarter_end_month_label(last_date) if freq == "Q" else format_period(last_date, freq)
+    return clean.iloc[-1], period

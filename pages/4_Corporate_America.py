@@ -1,9 +1,15 @@
 import streamlit as st
 
 from dashboard.components.controls import render_dual_axis_section, render_line_section
+from dashboard.components.kpi import kpi_row
+from dashboard.config import series as s
 from dashboard.data import loader
 
 st.title("Corporate America")
+
+kpi_row(loader.load_corporate_kpis())
+
+st.divider()
 
 data, errors = loader.load_corporate_profits_yoy()
 render_line_section(
@@ -15,6 +21,7 @@ render_line_section(
     unit="pct",
     zero_line=True,
     y_title="YoY % change",
+    sources=[s.CORPORATE_PROFITS],
 )
 
 data, errors = loader.load_corporate_profits_share_gdp()
@@ -26,6 +33,7 @@ render_line_section(
     freq="Q",
     unit="pct",
     y_title="% of GDP",
+    sources=[s.CORPORATE_PROFITS, s.GDP_NOMINAL],
 )
 
 data, errors = loader.load_industrial_production()
@@ -37,6 +45,7 @@ render_dual_axis_section(
     freq="M",
     left_title="Industrial Production, YoY %",
     right_title="Capacity Utilization, %",
+    sources=[s.INDUSTRIAL_PRODUCTION, s.CAPACITY_UTILIZATION],
 )
 
 data, errors = loader.load_bond_spreads()
@@ -49,6 +58,7 @@ render_line_section(
     unit="pct",
     description="Option-adjusted spread over Treasuries.",
     y_title="Spread (%)",
+    sources=[s.BOND_SPREAD_BBB, s.BOND_SPREAD_BB, s.BOND_SPREAD_B, s.BOND_SPREAD_CCC],
 )
 
 data, errors = loader.load_corporate_delinquency_chargeoff()
@@ -61,4 +71,5 @@ render_line_section(
     unit="pct",
     description="Business loans, commercial banks.",
     y_title="%",
+    sources=[s.BUSINESS_LOAN_DELINQ, s.BUSINESS_LOAN_CHARGEOFF],
 )
