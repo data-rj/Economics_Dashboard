@@ -12,6 +12,7 @@ import pandas as pd
 from dashboard.config import series as s
 from dashboard.data.fred_client import safe_fetch_series
 from dashboard.data.nowcasts import get_nyfed_nowcast
+from dashboard.utils.formatting import quarter_end_month_label
 from dashboard.utils.transforms import (
     diff,
     drop_future,
@@ -47,21 +48,21 @@ def load_gdp_kpis() -> list[dict]:
             "label": "Real GDP YoY%",
             "value": gdp_yoy.iloc[-1] if not gdp_yoy.empty else None,
             "unit": "pct",
-            "period": gdp_yoy.index[-1].strftime("%b %Y") if not gdp_yoy.empty else None,
+            "period": quarter_end_month_label(gdp_yoy.index[-1]) if not gdp_yoy.empty else None,
             "error": e1 if gdp_yoy.empty else None,
         },
         {
             "label": "GDP QoQ Annualized",
             "value": gdp_qoq_clean.iloc[-1] if not gdp_qoq_clean.empty else None,
             "unit": "pct",
-            "period": gdp_qoq_clean.index[-1].strftime("%b %Y") if not gdp_qoq_clean.empty else None,
+            "period": quarter_end_month_label(gdp_qoq_clean.index[-1]) if not gdp_qoq_clean.empty else None,
             "error": e2 if gdp_qoq_clean.empty else None,
         },
         {
             "label": "Atlanta Fed GDPNow",
             "value": gdpnow_clean.iloc[-1] if not gdpnow_clean.empty else None,
             "unit": "pct",
-            "period": gdpnow_clean.index[-1].strftime("%b %Y") if not gdpnow_clean.empty else None,
+            "period": quarter_end_month_label(gdpnow_clean.index[-1]) if not gdpnow_clean.empty else None,
             "error": e3 if gdpnow_clean.empty else None,
         },
         {

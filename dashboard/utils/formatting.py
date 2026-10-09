@@ -23,6 +23,17 @@ def format_period(date: pd.Timestamp, freq: str) -> str:
     return date.strftime(FREQ_PERIOD_FORMAT.get(freq, "%b %d, %Y"))
 
 
+def quarter_end_month_label(date: pd.Timestamp) -> str:
+    """Month/year label for the END of the quarter `date` falls in.
+
+    FRED indexes quarterly series by the FIRST day of the quarter (e.g.
+    2025-07-01 for Q3 2025), so a plain strftime shows "Jul 2025" for data
+    that actually describes the quarter ending in September. This shifts
+    to the quarter's last month before formatting.
+    """
+    return date.to_period("Q").end_time.strftime("%b %Y")
+
+
 def format_value(value: float, unit: str) -> str:
     if pd.isna(value):
         return "n/a"
