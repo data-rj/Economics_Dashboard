@@ -14,6 +14,7 @@ from the error text alone without needing to re-fetch the file.
 """
 from __future__ import annotations
 
+import re
 from io import BytesIO
 
 import pandas as pd
@@ -53,15 +54,63 @@ def _download_nyfed_workbook(url: str) -> bytes:
     return resp.content
 
 
-def get_nyfed_nowcast() -> tuple[float | None, str | None, str | None]:
-    """Return (latest_nowcast_value, quarter_label, error_message).
+def _quarter_label(raw: object) -> str:
+    """Normalize a column header like "2026Q3" to "Q3 2026"; pass through
+    anything that doesn't match that shape unchanged.
+    """
+    text = str(raw).strip()
+    m = re.fullmatch(r"(\d{4})\s*[Qq](\d)", text)
+    if m:
+        year, q = m.groups()
+        return f"Q{q} {year}"
+    return text
 
-    Defensive parse: scans every sheet for a row whose label mentions
-    "nowcast" and takes the most recent non-null numeric value on that row,
-    paired with its column header (the forecast quarter / release date).
-    If no such row is found, the error message includes the sheet names
-    and sample first-column labels so the real layout can be diagnosed
-    without another round trip.
+
+def _parse_release_dated_sheet(sheet: pd.DataFrame) -> tuple[float, str] | None:
+    """Parse the layout the real NY Fed workbook actually uses: column 0 is
+    "Forecast Date" with one weekly release date per row (rows 1+), and the
+    header row (row 0) labels the other columns by target quarter or
+    forecast horizon. Takes the most recent release (last valid date row)
+    and the rightmost non-null value on that row — the actively-tracked
+    nowcast; older target-quarter columns go stale/NaN once that quarter's
+    actual GDP print is out.
+    """
+    if sheet.shape[0] < 2 or sheet.shape[1] < 2:
+        return None
+
+    header_row = sheet.iloc[0]
+    dates = pd.to_datetime(sheet.iloc[1:, 0], errors="coerce")
+    valid_dates = dates.dropna()
+    if valid_dates.empty:
+        return None
+
+    row_idx = valid_dates.index[-1]
+    row = sheet.loc[row_idx]
+    numeric = pd.to_numeric(row.iloc[1:], errors="coerce").dropna()
+    if numeric.empty:
+        return None
+
+    col_idx = numeric.index[-1]
+    value = float(numeric.iloc[-1])
+    col_label = header_row.get(col_idx)
+    release_date = valid_dates.loc[row_idx]
+
+    label = _quarter_label(col_label) if pd.notna(col_label) else "current quarter"
+    return value, f"{label} (as of {release_date.strftime('%b %d, %Y')})"
+
+
+def get_nyfed_nowcast() -> tuple[float | None, str | None, str | None]:
+    """Return (latest_nowcast_value, period_label, error_message).
+
+    The real workbook (confirmed from a live error report, since
+    newyorkfed.org is unreachable from this dev environment) is organized
+    with release dates down the rows and target quarters / horizons across
+    the columns — see _parse_release_dated_sheet. We try that on every
+    sheet, preferring ones whose name suggests a quarter/horizon table,
+    then fall back to the older "row labeled 'Nowcast'" layout in case the
+    file changes shape again. If nothing matches, the error reports every
+    sheet's name, shape, and a sample of actual cell values (not just
+    column 0) so a further mismatch can be diagnosed without guessing.
     """
     try:
         raw = _download_nyfed_workbook(NY_FED_NOWCAST_URL)
@@ -76,14 +125,29 @@ def get_nyfed_nowcast() -> tuple[float | None, str | None, str | None]:
             f"a readable Excel workbook ({exc}). The download link may have moved."
         )
 
+    sheets: dict[str, pd.DataFrame] = {}
     sheet_samples = []
     for sheet_name in xls.sheet_names:
         try:
-            sheet = xls.parse(sheet_name, header=None)
+            sheets[sheet_name] = xls.parse(sheet_name, header=None)
         except Exception as exc:
             sheet_samples.append(f"'{sheet_name}': <failed to parse: {exc}>")
-            continue
 
+    # Prefer a sheet named like "... By Quarter" / "... By Horizon" first,
+    # since those are the release-dated tables; try the rest after.
+    ordered_names = sorted(
+        sheets, key=lambda name: ("quarter" not in name.lower() and "horizon" not in name.lower())
+    )
+
+    for sheet_name in ordered_names:
+        parsed = _parse_release_dated_sheet(sheets[sheet_name])
+        if parsed is not None:
+            value, period = parsed
+            return value, period, None
+
+    # Fallback: older layout — a row whose first-column label mentions
+    # "nowcast", with values spread across that row's other columns.
+    for sheet_name, sheet in sheets.items():
         for i in range(len(sheet)):
             row = sheet.iloc[i]
             label = str(row.iloc[0]) if pd.notna(row.iloc[0]) else ""
@@ -97,12 +161,11 @@ def get_nyfed_nowcast() -> tuple[float | None, str | None, str | None]:
                 col_label = header_row.get(last_col_idx)
                 return float(value), (str(col_label) if pd.notna(col_label) else None), None
 
-        sample_labels = [
-            str(v) for v in sheet.iloc[:15, 0].tolist() if pd.notna(v)
-        ][:10]
-        sheet_samples.append(f"'{sheet_name}' ({sheet.shape[0]}x{sheet.shape[1]}): {sample_labels}")
+    for sheet_name, sheet in sheets.items():
+        preview = sheet.iloc[: min(6, len(sheet)), : min(5, sheet.shape[1])].to_dict(orient="split")["data"]
+        sheet_samples.append(f"'{sheet_name}' ({sheet.shape[0]}x{sheet.shape[1]}): {preview}")
 
     return None, None, (
-        "Could not locate a row labeled 'Nowcast' in the NY Fed workbook. "
-        "Sheets found: " + " | ".join(sheet_samples)
+        "Could not parse the NY Fed workbook with either known layout. "
+        "Sheet previews: " + " | ".join(sheet_samples)
     )
