@@ -31,19 +31,49 @@ def _fetch(series_id: str) -> tuple[pd.Series, str | None]:
     return safe_fetch_series(series_id, START)
 
 
-def kpi_from_series(label: str, series: pd.Series, freq: str, unit: str, error: str | None) -> dict:
+def kpi_from_series(
+    label: str,
+    series: pd.Series,
+    freq: str,
+    unit: str,
+    error: str | None,
+    sub_metrics: list[tuple[str, pd.Series, str]] | None = None,
+    show_delta: bool = False,
+    delta_invert: bool = False,
+) -> dict:
     """Build one kpi_row() item from an already-transformed series — used
     to turn page-top KPI tiles out of the same data a page's charts fetch,
     without issuing any extra requests.
+
+    sub_metrics: extra (label, series, unit) lines shown under the main
+    value, e.g. a longer moving-average alongside the headline figure.
+    show_delta: show a colored period-over-period change indicator (the
+    last two non-null points of `series`). delta_invert flips the
+    good/bad color convention for series where a decrease is favorable
+    (e.g. jobless claims).
     """
+    clean = series.dropna()
     value, period = latest_value_and_period(series, freq)
-    return {
+    item = {
         "label": label,
         "value": value,
         "unit": unit,
         "period": period,
         "error": error if value is None else None,
     }
+    if sub_metrics:
+        item["sub_metrics"] = []
+        for sub_label, sub_series, sub_unit in sub_metrics:
+            sub_clean = sub_series.dropna()
+            sub_value = sub_clean.iloc[-1] if not sub_clean.empty else None
+            item["sub_metrics"].append({"label": sub_label, "value": sub_value, "unit": sub_unit})
+    if show_delta and len(clean) >= 2:
+        item["delta"] = {
+            "value": clean.iloc[-1] - clean.iloc[-2],
+            "unit": unit,
+            "invert": delta_invert,
+        }
+    return item
 
 
 # ---------------- Economic Overview ----------------
@@ -145,9 +175,12 @@ def load_output_gap() -> tuple[dict[str, pd.Series], dict[str, str]]:
 
 def load_labor_kpis() -> list[dict]:
     unemployment_data, unemployment_errors = load_unemployment_rates()
-    change, _avg3, payrolls_err = load_payrolls_change()
+    change, avg3, payrolls_err = load_payrolls_change()
     ahe_data, ahe_errors = load_avg_hourly_earnings()
     claims_data, claims_errors = load_jobless_claims()
+
+    raw_claims = claims_data["Initial Jobless Claims"]
+    avg12wk = moving_average(raw_claims, 12)
 
     return [
         kpi_from_series(
@@ -157,7 +190,14 @@ def load_labor_kpis() -> list[dict]:
             "pct",
             unemployment_errors["Unemployment Rate (U-3)"],
         ),
-        kpi_from_series("Payrolls, Monthly Change", change, "M", "thousands", payrolls_err),
+        kpi_from_series(
+            "Payrolls, Monthly Change",
+            change,
+            "M",
+            "thousands",
+            payrolls_err,
+            sub_metrics=[("3-Mo Avg", avg3, "thousands")],
+        ),
         kpi_from_series(
             "Avg Hourly Earnings YoY%",
             ahe_data["Avg Hourly Earnings YoY%"],
@@ -166,11 +206,14 @@ def load_labor_kpis() -> list[dict]:
             ahe_errors["Avg Hourly Earnings YoY%"],
         ),
         kpi_from_series(
-            "Initial Jobless Claims",
-            claims_data["Initial Jobless Claims"],
+            "Initial Claims (4-Wk Avg)",
+            claims_data["4-Week Moving Average"],
             "W",
             "thousands",
-            claims_errors["Initial Jobless Claims"],
+            claims_errors["4-Week Moving Average"],
+            sub_metrics=[("12-Wk Avg", avg12wk, "thousands")],
+            show_delta=True,
+            delta_invert=True,  # rising claims is unfavorable — shown in red
         ),
     ]
 
@@ -201,8 +244,13 @@ def load_avg_hourly_earnings() -> tuple[dict[str, pd.Series], dict[str, str]]:
 
 
 def load_jobless_claims() -> tuple[dict[str, pd.Series], dict[str, str]]:
+    # FRED publishes ICSA/IC4WSA as a raw headcount (e.g. 225,000), not
+    # pre-scaled to thousands like PAYEMS/JOLTS/housing are — divide so the
+    # "thousands" unit formatter (which just appends "K") is correct.
     claims, e1 = _fetch(s.INITIAL_CLAIMS)
     avg4wk, e2 = _fetch(s.INITIAL_CLAIMS_4WK_AVG)
+    claims = claims / 1000
+    avg4wk = avg4wk / 1000
     return {"Initial Jobless Claims": claims, "4-Week Moving Average": avg4wk}, {
         "Initial Jobless Claims": e1,
         "4-Week Moving Average": e2,
