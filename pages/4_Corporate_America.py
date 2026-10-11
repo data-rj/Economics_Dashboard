@@ -48,6 +48,25 @@ render_dual_axis_section(
     sources=[s.INDUSTRIAL_PRODUCTION, s.CAPACITY_UTILIZATION],
 )
 
+data, errors = loader.load_manufacturing_ratios()
+render_line_section(
+    "Manufacturing Orders-to-Inventories Ratios",
+    "mfg_orders_inventories",
+    data,
+    errors,
+    freq="M",
+    unit="ratio",
+    description="New orders ÷ inventories — a rising ratio signals demand outrunning stock "
+    "(restocking); a falling ratio signals an inventory overhang.",
+    y_title="Orders / inventories",
+    sources=[
+        s.DURABLE_GOODS_NEW_ORDERS,
+        s.DURABLE_GOODS_INVENTORIES,
+        s.TOTAL_MFG_NEW_ORDERS,
+        s.TOTAL_MFG_INVENTORIES,
+    ],
+)
+
 data, errors = loader.load_bond_spreads()
 render_line_section(
     "Corporate Bond Spreads by Rating",

@@ -36,6 +36,9 @@ INITIAL_CLAIMS_4WK_AVG = "IC4WSA"
 JOLTS_OPENINGS = "JTSJOL"
 JOLTS_QUITS = "JTSQUL"
 
+UNEMPLOYED_LEVEL = "UNEMPLOY"  # Unemployment Level, thousands of persons
+HOUSEHOLD_EMPLOYMENT = "CE16OV"  # Employment Level (household/CPS survey)
+
 LFPR_TOTAL = "CIVPART"
 LFPR_16_19 = "LNS11300012"
 LFPR_25_54 = "LNS11300060"
@@ -69,6 +72,15 @@ BOND_SPREAD_CCC = "BAMLH0A3HYC"
 
 BUSINESS_LOAN_DELINQ = "DRBLACBS"
 BUSINESS_LOAN_CHARGEOFF = "CORBLACBS"
+
+# Orders-to-inventories ratios (Census M3 survey) — verified against FRED
+# before use; note AMTMNO (NOT "NEWORDER", which is the narrower Nondefense
+# Capital Goods Excl. Aircraft series — scope-mismatched against the total
+# manufacturing inventories denominator below).
+DURABLE_GOODS_NEW_ORDERS = "DGORDER"
+DURABLE_GOODS_INVENTORIES = "AMDMTI"
+TOTAL_MFG_NEW_ORDERS = "AMTMNO"
+TOTAL_MFG_INVENTORIES = "MNFCTRIMSA"
 
 # ---- Investment ----
 NONRESIDENTIAL_FIXED_INVESTMENT_REAL = "PNFIC1"

@@ -69,7 +69,13 @@ def multi_line_chart(
     unit: str,
     y_title: str | None = None,
     zero_line: bool = False,
+    reference_lines: list[tuple[float, str, str]] | None = None,
 ) -> go.Figure:
+    """reference_lines: optional (value, label, color) threshold lines —
+    e.g. labeled bands for a ratio chart. Drawn dashed with an inline
+    annotation rather than relying on color alone (status colors are
+    reserved and always paired with a label, never color-only).
+    """
     fig = go.Figure()
     for i, (label, series) in enumerate(series_dict.items()):
         color = CATEGORICAL_ORDER[i % len(CATEGORICAL_ORDER)]
@@ -86,6 +92,16 @@ def multi_line_chart(
         )
     if zero_line:
         fig.add_hline(y=0, line_width=1, line_color=ZERO_LINE_COLOR)
+    for value, label, color in reference_lines or []:
+        fig.add_hline(
+            y=value,
+            line_width=1.5,
+            line_dash="dot",
+            line_color=color,
+            annotation_text=label,
+            annotation_position="top left",
+            annotation_font=dict(size=11, color=color),
+        )
     fig.update_layout(**BASE_LAYOUT)
     fig.update_xaxes(**_axis_style())
     fig.update_yaxes(**_axis_style(title=y_title))

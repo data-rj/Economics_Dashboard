@@ -55,12 +55,15 @@ def render_line_section(
     zero_line: bool = False,
     y_title: str | None = None,
     sources: list[str] | str | None = None,
+    reference_lines: list[tuple[float, str, str]] | None = None,
 ) -> None:
     with st.container(border=True):
         range_label = chart_header(title, key, description)
         clipped = clip_series_dict(data, range_label)
         if any(not series.dropna().empty for series in clipped.values()):
-            fig = multi_line_chart(clipped, freq, unit, y_title=y_title, zero_line=zero_line)
+            fig = multi_line_chart(
+                clipped, freq, unit, y_title=y_title, zero_line=zero_line, reference_lines=reference_lines
+            )
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
             st.info("No data available.")
