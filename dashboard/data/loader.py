@@ -477,18 +477,21 @@ def load_industrial_production() -> tuple[dict[str, pd.Series], dict[str, str]]:
     }, {"Industrial Production YoY%": e1, "Capacity Utilization": e2}
 
 
-def load_manufacturing_ratios() -> tuple[dict[str, pd.Series], dict[str, str]]:
+def load_manufacturing_ratios() -> tuple[dict, dict[str, str]]:
     """New orders / inventories — a narrow (durable goods) and a broad
     (total manufacturing) read on whether demand is outrunning stock
     (restocking signal) or inventories are building up (overhang signal).
+    Separate axes: the two ratios sit at different baseline levels (durable
+    goods runs well below total manufacturing), so sharing one axis
+    compressed the durable-goods line's visible movement.
     """
     dg_orders, e1 = _fetch(s.DURABLE_GOODS_NEW_ORDERS)
     dg_inventories, e2 = _fetch(s.DURABLE_GOODS_INVENTORIES)
     total_orders, e3 = _fetch(s.TOTAL_MFG_NEW_ORDERS)
     total_inventories, e4 = _fetch(s.TOTAL_MFG_INVENTORIES)
     data = {
-        "Durable Goods: Orders / Inventories": ratio(dg_orders, dg_inventories),
-        "Total Manufacturing: Orders / Inventories": ratio(total_orders, total_inventories),
+        "left": ("Durable Goods: Orders / Inventories", ratio(dg_orders, dg_inventories), "ratio"),
+        "right": ("Total Manufacturing: Orders / Inventories", ratio(total_orders, total_inventories), "ratio"),
     }
     errors = {
         "Durable Goods: Orders / Inventories": e1 or e2,
