@@ -19,6 +19,7 @@ from dashboard.utils.transforms import (
     moving_average,
     pct_of,
     period_annualized_pct,
+    ratio,
     resample_mean,
     trailing_sum,
     yoy_pct,
@@ -40,6 +41,7 @@ def kpi_from_series(
     sub_metrics: list[tuple[str, pd.Series, str]] | None = None,
     show_delta: bool = False,
     delta_invert: bool = False,
+    status_fn: callable | None = None,
 ) -> dict:
     """Build one kpi_row() item from an already-transformed series — used
     to turn page-top KPI tiles out of the same data a page's charts fetch,
@@ -51,6 +53,9 @@ def kpi_from_series(
     last two non-null points of `series`). delta_invert flips the
     good/bad color convention for series where a decrease is favorable
     (e.g. jobless claims).
+    status_fn: optional callable(value) -> {"text", "color"} | None —
+    a qualitative status tag (e.g. "Severe Shortage") shown under the
+    value, for series with a known interpretive threshold.
     """
     clean = series.dropna()
     value, period = latest_value_and_period(series, freq)
@@ -73,6 +78,10 @@ def kpi_from_series(
             "unit": unit,
             "invert": delta_invert,
         }
+    if status_fn is not None and value is not None:
+        status = status_fn(value)
+        if status:
+            item["status"] = status
     return item
 
 
@@ -173,14 +182,30 @@ def load_output_gap() -> tuple[dict[str, pd.Series], dict[str, str]]:
 
 # ---------------- Labor Market ----------------
 
+# Labor-market-tightness reference bands: a widely-used read on the JOLTS
+# Job Openings / Unemployed Persons ratio (the "V/U ratio").
+TIGHTNESS_SEVERE_SHORTAGE = 1.2
+TIGHTNESS_DETERIORATION = 0.8
+
+
+def _labor_tightness_status(value: float) -> dict | None:
+    if value > TIGHTNESS_SEVERE_SHORTAGE:
+        return {"text": "Severe Shortage", "color": "orange"}
+    if value < TIGHTNESS_DETERIORATION:
+        return {"text": "Deteriorating", "color": "red"}
+    return {"text": "Balanced", "color": "gray"}
+
+
 def load_labor_kpis() -> list[dict]:
     unemployment_data, unemployment_errors = load_unemployment_rates()
     change, avg3, payrolls_err = load_payrolls_change()
     ahe_data, ahe_errors = load_avg_hourly_earnings()
     claims_data, claims_errors = load_jobless_claims()
+    tightness_data, tightness_errors = load_labor_tightness_ratio()
 
     raw_claims = claims_data["Initial Jobless Claims"]
     avg12wk = moving_average(raw_claims, 12)
+    tightness_label = "Job Openings per Unemployed Worker"
 
     return [
         kpi_from_series(
@@ -215,6 +240,14 @@ def load_labor_kpis() -> list[dict]:
             show_delta=True,
             delta_invert=True,  # rising claims is unfavorable — shown in red
         ),
+        kpi_from_series(
+            "Job Openings / Unemployed",
+            tightness_data[tightness_label],
+            "M",
+            "ratio",
+            tightness_errors[tightness_label],
+            status_fn=_labor_tightness_status,
+        ),
     ]
 
 
@@ -232,6 +265,24 @@ def load_payrolls_change() -> tuple[pd.Series, pd.Series, str | None]:
     change = diff(payems)
     avg3 = moving_average(change, 3)
     return change, avg3, e1
+
+
+def load_survey_comparison() -> tuple[dict[str, pd.Series], dict[str, str]]:
+    """Establishment survey (payrolls) vs. household survey employment,
+    monthly change — the two surveys can diverge notably, and watching
+    the gap is a standard cross-check on the headline payrolls number.
+    """
+    change, _avg3, e1 = load_payrolls_change()
+    household, e2 = _fetch(s.HOUSEHOLD_EMPLOYMENT)
+    household_change = diff(household)
+    data = {
+        "Nonfarm Payrolls (Establishment)": change,
+        "Household Survey Employment": household_change,
+    }
+    return data, {
+        "Nonfarm Payrolls (Establishment)": e1,
+        "Household Survey Employment": e2,
+    }
 
 
 def load_avg_hourly_earnings() -> tuple[dict[str, pd.Series], dict[str, str]]:
@@ -261,6 +312,17 @@ def load_jolts() -> tuple[dict[str, pd.Series], dict[str, str]]:
     openings, e1 = _fetch(s.JOLTS_OPENINGS)
     quits, e2 = _fetch(s.JOLTS_QUITS)
     return {"Job Openings": openings, "Quits": quits}, {"Job Openings": e1, "Quits": e2}
+
+
+def load_labor_tightness_ratio() -> tuple[dict[str, pd.Series], dict[str, str]]:
+    """JOLTS Job Openings / Unemployed Persons — the "V/U ratio" labor
+    market tightness gauge. >1.2 is read as a severe shortage, <0.8 as
+    deteriorating labor demand (see TIGHTNESS_* thresholds above).
+    """
+    openings, e1 = _fetch(s.JOLTS_OPENINGS)
+    unemployed, e2 = _fetch(s.UNEMPLOYED_LEVEL)
+    label = "Job Openings per Unemployed Worker"
+    return {label: ratio(openings, unemployed)}, {label: e1 or e2}
 
 
 def load_lfpr_by_age() -> tuple[dict[str, pd.Series], dict[str, str]]:
@@ -413,6 +475,26 @@ def load_industrial_production() -> tuple[dict[str, pd.Series], dict[str, str]]:
         "left": ("Industrial Production YoY%", yoy_pct(indpro, "M"), "pct"),
         "right": ("Capacity Utilization", tcu, "pct"),
     }, {"Industrial Production YoY%": e1, "Capacity Utilization": e2}
+
+
+def load_manufacturing_ratios() -> tuple[dict[str, pd.Series], dict[str, str]]:
+    """New orders / inventories — a narrow (durable goods) and a broad
+    (total manufacturing) read on whether demand is outrunning stock
+    (restocking signal) or inventories are building up (overhang signal).
+    """
+    dg_orders, e1 = _fetch(s.DURABLE_GOODS_NEW_ORDERS)
+    dg_inventories, e2 = _fetch(s.DURABLE_GOODS_INVENTORIES)
+    total_orders, e3 = _fetch(s.TOTAL_MFG_NEW_ORDERS)
+    total_inventories, e4 = _fetch(s.TOTAL_MFG_INVENTORIES)
+    data = {
+        "Durable Goods: Orders / Inventories": ratio(dg_orders, dg_inventories),
+        "Total Manufacturing: Orders / Inventories": ratio(total_orders, total_inventories),
+    }
+    errors = {
+        "Durable Goods: Orders / Inventories": e1 or e2,
+        "Total Manufacturing: Orders / Inventories": e3 or e4,
+    }
+    return data, errors
 
 
 def load_bond_spreads() -> tuple[dict[str, pd.Series], dict[str, str]]:

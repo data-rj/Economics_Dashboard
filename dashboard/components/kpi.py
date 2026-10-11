@@ -27,7 +27,9 @@ def _format_delta(delta: dict) -> str:
 def kpi_row(items: list[dict]) -> None:
     """items: list of {label, value, unit, period, error(optional),
     sub_metrics(optional): [{label, value, unit}, ...],
-    delta(optional): {value, unit, invert}}.
+    delta(optional): {value, unit, invert},
+    status(optional): {text, color} — a qualitative tag (e.g. "Severe
+    Shortage") for series with a known interpretive threshold}.
     """
     cols = st.columns(len(items))
     for col, item in zip(cols, items):
@@ -45,6 +47,9 @@ def kpi_row(items: list[dict]) -> None:
                         delta_text = _format_delta(delta)
                         if delta_text:
                             st.markdown(delta_text)
+                    status = item.get("status")
+                    if status:
+                        st.markdown(f":{status['color']}[{status['text']}]")
                     st.caption(item.get("period") or "")
                     for sub in item.get("sub_metrics", []):
                         sub_value = sub.get("value")
