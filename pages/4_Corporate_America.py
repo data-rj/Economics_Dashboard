@@ -49,16 +49,16 @@ render_dual_axis_section(
 )
 
 data, errors = loader.load_manufacturing_ratios()
-render_line_section(
+render_dual_axis_section(
     "Manufacturing Orders-to-Inventories Ratios",
     "mfg_orders_inventories",
     data,
     errors,
     freq="M",
-    unit="ratio",
     description="New orders ÷ inventories — a rising ratio signals demand outrunning stock "
     "(restocking); a falling ratio signals an inventory overhang.",
-    y_title="Orders / inventories",
+    left_title="Durable Goods, Orders / Inventories",
+    right_title="Total Manufacturing, Orders / Inventories",
     sources=[
         s.DURABLE_GOODS_NEW_ORDERS,
         s.DURABLE_GOODS_INVENTORIES,
