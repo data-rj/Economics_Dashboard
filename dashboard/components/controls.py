@@ -12,6 +12,7 @@ from dashboard.components.charts import (
 )
 from dashboard.config.sources import fred_source_caption
 from dashboard.utils.daterange import clip_to_range, range_control
+from dashboard.utils.transforms import to_quarter_end
 
 
 def chart_header(title: str, key: str, description: str | None = None) -> str:
@@ -25,8 +26,18 @@ def chart_header(title: str, key: str, description: str | None = None) -> str:
     return range_label
 
 
-def clip_series_dict(series_dict: dict[str, pd.Series], range_label: str) -> dict[str, pd.Series]:
-    return {label: clip_to_range(s, range_label) for label, s in series_dict.items()}
+def clip_series_dict(
+    series_dict: dict[str, pd.Series], range_label: str, freq: str | None = None
+) -> dict[str, pd.Series]:
+    clipped = {label: clip_to_range(s, range_label) for label, s in series_dict.items()}
+    if freq == "Q":
+        clipped = {label: to_quarter_end(s) for label, s in clipped.items()}
+    return clipped
+
+
+def _clip_series(series: pd.Series, range_label: str, freq: str | None = None) -> pd.Series:
+    clipped = clip_to_range(series, range_label)
+    return to_quarter_end(clipped) if freq == "Q" else clipped
 
 
 def show_data_errors(errors: dict[str, str]) -> None:
@@ -59,7 +70,7 @@ def render_line_section(
 ) -> None:
     with st.container(border=True):
         range_label = chart_header(title, key, description)
-        clipped = clip_series_dict(data, range_label)
+        clipped = clip_series_dict(data, range_label, freq)
         if any(not series.dropna().empty for series in clipped.values()):
             fig = multi_line_chart(
                 clipped, freq, unit, y_title=y_title, zero_line=zero_line, reference_lines=reference_lines
@@ -85,11 +96,11 @@ def render_stacked_bar_section(
 ) -> None:
     with st.container(border=True):
         range_label = chart_header(title, key, description)
-        clipped = clip_series_dict(data, range_label)
+        clipped = clip_series_dict(data, range_label, freq)
         clipped_total = None
         if total_line is not None:
             label, series = total_line
-            clipped_total = (label, clip_to_range(series, range_label))
+            clipped_total = (label, _clip_series(series, range_label, freq))
         if any(not series.dropna().empty for series in clipped.values()):
             fig = stacked_bar_chart(clipped, freq, unit, y_title=y_title, total_line=clipped_total)
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
@@ -114,8 +125,8 @@ def render_dual_axis_section(
         range_label = chart_header(title, key, description)
         left_label, left_series, left_unit = data["left"]
         right_label, right_series, right_unit = data["right"]
-        left_clipped = (left_label, clip_to_range(left_series, range_label), left_unit)
-        right_clipped = (right_label, clip_to_range(right_series, range_label), right_unit)
+        left_clipped = (left_label, _clip_series(left_series, range_label, freq), left_unit)
+        right_clipped = (right_label, _clip_series(right_series, range_label, freq), right_unit)
         if not left_series.dropna().empty or not right_series.dropna().empty:
             fig = dual_axis_chart(
                 left_clipped, right_clipped, freq, left_title=left_title, right_title=right_title
@@ -141,7 +152,7 @@ def render_area_section(
 ) -> None:
     with st.container(border=True):
         range_label = chart_header(title, key, description)
-        clipped = clip_series_dict(data, range_label)
+        clipped = clip_series_dict(data, range_label, freq)
         if any(not series.dropna().empty for series in clipped.values()):
             fig = area_chart(clipped, freq, unit, y_title=y_title, zero_line=zero_line)
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")

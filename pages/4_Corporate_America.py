@@ -92,3 +92,16 @@ render_line_section(
     y_title="%",
     sources=[s.BUSINESS_LOAN_DELINQ, s.BUSINESS_LOAN_CHARGEOFF],
 )
+
+data, errors = loader.load_bank_loan_allowance()
+render_dual_axis_section(
+    "Bank Loan Growth & Credit Loss Allowance Coverage",
+    "bank_loan_allowance",
+    data,
+    errors,
+    freq="W",
+    description="Allowance for credit losses held against total loans & leases, all commercial banks.",
+    left_title="Total Loans & Leases, YoY %",
+    right_title="Allowance, % of Total Loans",
+    sources=[s.TOTAL_BANK_LOANS_LEASES, s.ALLOWANCE_CREDIT_LOSSES],
+)
