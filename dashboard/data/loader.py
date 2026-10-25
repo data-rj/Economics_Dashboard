@@ -359,9 +359,29 @@ def load_consumer_kpis() -> list[dict]:
     retail_data, retail_errors = load_retail_sales()
     dsr_data, dsr_errors = load_household_dsr()
 
+    # load_pce_income_savings()/load_retail_sales() only return derived
+    # (YoY%) series, not the raw levels — re-fetch for 3-month-annualized
+    # trend sub-metrics. Hits the cache (same series already fetched
+    # above), not a new network request.
+    pce_raw, _pce_raw_err = _fetch(s.REAL_PCE)
+    pce_3mo_annualized = window_annualized_pct(pce_raw, "M", 3)
+
+    retail_raw, _retail_raw_err = _fetch(s.RETAIL_SALES)
+    retail_3mo_annualized = window_annualized_pct(retail_raw, "M", 3)
+
+    savings_3mo_avg = moving_average(pce_data["Personal Savings Rate"], 3)
+
+    dsr_total = dsr_data["Total Debt Service Ratio"]
+    dsr_yoy_change = diff(dsr_total, 4)  # quarterly series -> 4 periods = 1 year
+
     return [
         kpi_from_series(
-            "Real PCE YoY%", pce_data["Real PCE YoY%"], "M", "pct", pce_errors["Real PCE YoY%"]
+            "Real PCE YoY%",
+            pce_data["Real PCE YoY%"],
+            "M",
+            "pct",
+            pce_errors["Real PCE YoY%"],
+            sub_metrics=[("3-Mo Annualized", pce_3mo_annualized, "pct")],
         ),
         kpi_from_series(
             "Personal Savings Rate",
@@ -369,6 +389,7 @@ def load_consumer_kpis() -> list[dict]:
             "M",
             "pct",
             pce_errors["Personal Savings Rate"],
+            sub_metrics=[("3-Mo Avg", savings_3mo_avg, "pct")],
         ),
         kpi_from_series(
             "Retail Sales YoY%",
@@ -376,13 +397,15 @@ def load_consumer_kpis() -> list[dict]:
             "M",
             "pct",
             retail_errors["Retail Sales YoY%"],
+            sub_metrics=[("3-Mo Annualized", retail_3mo_annualized, "pct")],
         ),
         kpi_from_series(
             "Household Debt Service Ratio",
-            dsr_data["Total Debt Service Ratio"],
+            dsr_total,
             "Q",
             "pct",
             dsr_errors["Total Debt Service Ratio"],
+            sub_metrics=[("YoY Change", dsr_yoy_change, "pp")],
         ),
     ]
 
