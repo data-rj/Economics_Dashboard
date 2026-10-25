@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from dashboard.components.charts import (
-    area_line_dual_axis_chart,
+    area_chart,
     dual_axis_chart,
     multi_line_chart,
     stacked_bar_chart,
@@ -127,27 +127,23 @@ def render_dual_axis_section(
         show_data_errors(errors)
 
 
-def render_area_line_section(
+def render_area_section(
     title: str,
     key: str,
-    data: dict,
+    data: dict[str, pd.Series],
     errors: dict[str, str],
     freq: str,
+    unit: str,
     description: str | None = None,
-    area_title: str | None = None,
-    line_title: str | None = None,
+    zero_line: bool = True,
+    y_title: str | None = None,
     sources: list[str] | str | None = None,
 ) -> None:
     with st.container(border=True):
         range_label = chart_header(title, key, description)
-        area_label, area_series, area_unit = data["area"]
-        line_label, line_series, line_unit = data["line"]
-        area_clipped = (area_label, clip_to_range(area_series, range_label), area_unit)
-        line_clipped = (line_label, clip_to_range(line_series, range_label), line_unit)
-        if not area_series.dropna().empty or not line_series.dropna().empty:
-            fig = area_line_dual_axis_chart(
-                area_clipped, line_clipped, freq, area_title=area_title, line_title=line_title
-            )
+        clipped = clip_series_dict(data, range_label)
+        if any(not series.dropna().empty for series in clipped.values()):
+            fig = area_chart(clipped, freq, unit, y_title=y_title, zero_line=zero_line)
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
             st.info("No data available.")

@@ -1,6 +1,6 @@
 import streamlit as st
 
-from dashboard.components.controls import render_area_line_section, render_line_section
+from dashboard.components.controls import render_area_section, render_dual_axis_section, render_line_section
 from dashboard.components.kpi import kpi_row
 from dashboard.config import series as s
 from dashboard.data import loader
@@ -37,14 +37,28 @@ render_line_section(
     sources=[s.FEDERAL_RECEIPTS, s.FEDERAL_OUTLAYS],
 )
 
-data, errors = loader.load_federal_deficit_debt()
-render_area_line_section(
-    "Federal Deficit & Debt",
-    "fed_deficit_debt",
+data, errors = loader.load_federal_deficit()
+render_area_section(
+    "Federal Deficit (TTM)",
+    "fed_deficit",
     data,
     errors,
     freq="M",
-    area_title="Federal Deficit, TTM ($B)",
-    line_title="Federal Debt (% of GDP)",
-    sources=[s.FEDERAL_DEFICIT_MONTHLY, s.FEDERAL_DEBT_PCT_GDP],
+    unit="usd_b",
+    y_title="$ Billions (TTM)",
+    sources=[s.FEDERAL_DEFICIT_MONTHLY],
+)
+
+data, errors = loader.load_federal_debt_metrics()
+render_dual_axis_section(
+    "Publicly Held Federal Debt: % of GDP vs. % of US Wealth",
+    "fed_debt_metrics",
+    data,
+    errors,
+    freq="Q",
+    description="Debt held by the public (excludes intragovernmental holdings) relative to two "
+    "different denominators.",
+    left_title="Debt, % of GDP",
+    right_title="Debt, % of US Household Net Worth",
+    sources=[s.FEDERAL_DEBT_PUBLIC_PCT_GDP, s.FEDERAL_DEBT_PUBLIC_LEVEL, s.HOUSEHOLD_NET_WORTH],
 )

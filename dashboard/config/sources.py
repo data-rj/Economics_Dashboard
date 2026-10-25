@@ -86,7 +86,9 @@ SOURCE_AGENCY: dict[str, str] = {
     "FGRECPT": BEA,
     "FGEXPND": BEA,
     "MTSDS133FMS": TREASURY,
-    "GFDEGDQ188S": TREASURY,
+    "FYGFGDQ188S": TREASURY,
+    "FYGFDPUN": TREASURY,
+    "TNWBSHNO": FED_BOARD,
     # Prices & Monetary Policy
     "CPIAUCSL": BLS,
     "CPILFESL": BLS,
