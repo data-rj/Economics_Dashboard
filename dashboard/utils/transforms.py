@@ -74,6 +74,18 @@ def pct_of(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
     return ratio(numerator, denominator) * 100
 
 
+def to_quarter_end(series: pd.Series) -> pd.Series:
+    """Relabel a quarterly series' index from FRED's quarter-START convention
+    (e.g. 2025-07-01 for Q3 2025) to the quarter's last calendar day (e.g.
+    2025-09-30), for display only. Values and ordering are unchanged, so
+    this is safe to apply after any YoY/diff/moving-average math and after
+    date-range clipping, right before a chart is built.
+    """
+    if series.empty:
+        return series
+    return series.set_axis(series.index.to_period("Q").end_time.normalize())
+
+
 def drop_future(series: pd.Series, as_of: pd.Timestamp | None = None) -> pd.Series:
     """Truncate a series to remove any datapoints beyond `as_of` (default:
     today). Used for CBO Potential GDP, which is published with a forecast

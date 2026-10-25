@@ -579,6 +579,20 @@ def load_corporate_delinquency_chargeoff() -> tuple[dict[str, pd.Series], dict[s
     }
 
 
+def load_bank_loan_allowance() -> tuple[dict, dict[str, str]]:
+    """Total bank loan/lease growth vs. the loan-loss allowance banks hold
+    against it. ALLACBW027SBOG is the Fed H.8 "LESS: Allowance for Credit
+    Losses on Loans and Leases" reserve, not a loan balance — expressed as
+    a % of TOTLL it reads as a loss-reserve coverage ratio.
+    """
+    loans, e1 = _fetch(s.TOTAL_BANK_LOANS_LEASES)
+    allowance, e2 = _fetch(s.ALLOWANCE_CREDIT_LOSSES)
+    return {
+        "left": ("Total Bank Loans & Leases YoY%", yoy_pct(loans, "W"), "pct"),
+        "right": ("Allowance for Credit Losses, % of Total Loans", pct_of(allowance, loans), "pct"),
+    }, {"Total Bank Loans & Leases YoY%": e1, "Allowance for Credit Losses, % of Total Loans": e2}
+
+
 # ---------------- Investment ----------------
 
 def load_investment_kpis() -> list[dict]:

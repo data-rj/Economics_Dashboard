@@ -74,6 +74,13 @@ HIGH_YIELD_COMPOSITE_OAS = "BAMLH0A0HYM2"  # ICE BofA US High Yield Index OAS (b
 BUSINESS_LOAN_DELINQ = "DRBLACBS"
 BUSINESS_LOAN_CHARGEOFF = "CORBLACBS"
 
+# Fed H.8 weekly series. ALLACBW027SBOG is the "LESS: Allowance for Credit
+# Losses on Loans and Leases" reserve banks hold against TOTLL — i.e. a loan
+# loss reserve coverage ratio when expressed as a % of TOTLL, not a separate
+# loan balance despite the ticker's resemblance to a loan series.
+TOTAL_BANK_LOANS_LEASES = "TOTLL"
+ALLOWANCE_CREDIT_LOSSES = "ALLACBW027SBOG"
+
 # Orders-to-inventories ratios (Census M3 survey) — verified against FRED
 # before use; note AMTMNO (NOT "NEWORDER", which is the narrower Nondefense
 # Capital Goods Excl. Aircraft series — scope-mismatched against the total
