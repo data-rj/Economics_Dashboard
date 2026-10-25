@@ -22,6 +22,7 @@ from dashboard.utils.transforms import (
     ratio,
     resample_mean,
     trailing_sum,
+    window_annualized_pct,
     yoy_pct,
 )
 
@@ -203,9 +204,18 @@ def load_labor_kpis() -> list[dict]:
     claims_data, claims_errors = load_jobless_claims()
     tightness_data, tightness_errors = load_labor_tightness_ratio()
 
+    unrate_3mo_avg = moving_average(unemployment_data["Unemployment Rate (U-3)"], 3)
+
     raw_claims = claims_data["Initial Jobless Claims"]
     avg12wk = moving_average(raw_claims, 12)
     tightness_label = "Job Openings per Unemployed Worker"
+
+    # AHE's own loader only returns derived (YoY% / 1-month-annualized)
+    # series, not the raw level — re-fetch to build a 3-month-annualized
+    # trend. This hits the cache (same series, same call already made
+    # above), not a second network request.
+    ahe_raw, ahe_raw_err = _fetch(s.AVG_HOURLY_EARNINGS)
+    ahe_3mo_annualized = window_annualized_pct(ahe_raw, "M", 3)
 
     return [
         kpi_from_series(
@@ -214,6 +224,7 @@ def load_labor_kpis() -> list[dict]:
             "M",
             "pct",
             unemployment_errors["Unemployment Rate (U-3)"],
+            sub_metrics=[("3-Mo Avg", unrate_3mo_avg, "pct")],
         ),
         kpi_from_series(
             "Payrolls, Monthly Change",
@@ -229,6 +240,7 @@ def load_labor_kpis() -> list[dict]:
             "M",
             "pct",
             ahe_errors["Avg Hourly Earnings YoY%"],
+            sub_metrics=[("3-Mo Annualized", ahe_3mo_annualized, "pct")],
         ),
         kpi_from_series(
             "Initial Claims (4-Wk Avg)",
