@@ -770,14 +770,36 @@ def load_prices_kpis() -> list[dict]:
     pce_data, pce_errors = load_pce_deflator()
     rates_data, rates_errors = load_interest_rates()
 
+    # Re-fetch raw levels/rates for the sub-metrics below — hits the
+    # fred_client's st.cache_data cache, not a new network request.
+    cpi_raw, _cpi_raw_err = _fetch(s.CPI)
+    cpi_3mo_annualized = window_annualized_pct(cpi_raw, "M", 3)
+
+    core_pce_raw, _core_pce_raw_err = _fetch(s.CORE_PCE_DEFLATOR)
+    core_pce_3mo_annualized = window_annualized_pct(core_pce_raw, "M", 3)
+
+    ffr_raw, _ffr_raw_err = _fetch(s.FED_FUNDS_RATE_DAILY)
+    ffr_3mo_avg = trailing_time_average(ffr_raw, "90D")
+
+    spread_raw, _spread_raw_err = _fetch(s.TREASURY_10Y_2Y_SPREAD)
+    spread_3mo_avg = trailing_time_average(spread_raw, "90D")
+
     return [
-        kpi_from_series("CPI YoY%", cpi_data["CPI YoY%"], "M", "pct", cpi_errors["CPI YoY%"]),
+        kpi_from_series(
+            "CPI YoY%",
+            cpi_data["CPI YoY%"],
+            "M",
+            "pct",
+            cpi_errors["CPI YoY%"],
+            sub_metrics=[("3-Mo Annualized", cpi_3mo_annualized, "pct")],
+        ),
         kpi_from_series(
             "Core PCE Deflator YoY%",
             pce_data["Core PCE Deflator YoY%"],
             "M",
             "pct",
             pce_errors["Core PCE Deflator YoY%"],
+            sub_metrics=[("3-Mo Annualized", core_pce_3mo_annualized, "pct")],
         ),
         kpi_from_series(
             "Fed Funds Rate",
@@ -785,6 +807,7 @@ def load_prices_kpis() -> list[dict]:
             "W",
             "pct",
             rates_errors["Fed Funds Rate (Weekly Avg)"],
+            sub_metrics=[("3-Mo Avg", ffr_3mo_avg, "pct")],
         ),
         kpi_from_series(
             "10Y-2Y Treasury Spread",
@@ -792,6 +815,7 @@ def load_prices_kpis() -> list[dict]:
             "W",
             "pct",
             rates_errors["10Y-2Y Spread (Weekly Avg)"],
+            sub_metrics=[("3-Mo Avg", spread_3mo_avg, "pct")],
         ),
     ]
 
