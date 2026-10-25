@@ -16,6 +16,7 @@ FRB_CLEVELAND = "Federal Reserve Bank of Cleveland"
 FRB_DALLAS = "Federal Reserve Bank of Dallas"
 ETA = "U.S. Employment and Training Administration"
 ICE = "ICE Data Indices, LLC"
+NBER = "National Bureau of Economic Research"
 
 SOURCE_AGENCY: dict[str, str] = {
     # GDP / Economic Overview
@@ -106,6 +107,8 @@ SOURCE_AGENCY: dict[str, str] = {
     "M2SL": FED_BOARD,
     "M2V": FRBSL,
     "WALCL": FED_BOARD,
+    # Shared
+    "USREC": NBER,
 }
 
 NY_FED_NOWCAST_AGENCY = "Federal Reserve Bank of New York"
