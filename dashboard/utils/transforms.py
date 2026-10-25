@@ -24,6 +24,17 @@ def period_annualized_pct(series: pd.Series, freq: str) -> pd.Series:
     periods = PERIODS_PER_YEAR[freq]
     return ((series / series.shift(1)) ** periods - 1) * 100
 
+
+def window_annualized_pct(series: pd.Series, freq: str, window: int) -> pd.Series:
+    """Annualize the compounded growth rate over `window` periods, e.g. a
+    "3-month annualized" rate: ((x_t / x_{t-3}) ** (12/3) - 1) * 100. This
+    is the standard compounding definition (not a moving average of
+    already-annualized single-period rates), so it reads consistently
+    with period_annualized_pct's 1-period case.
+    """
+    periods = PERIODS_PER_YEAR[freq]
+    return ((series / series.shift(window)) ** (periods / window) - 1) * 100
+
 def diff(series: pd.Series, periods: int = 1) -> pd.Series:
     return series.diff(periods)
 
