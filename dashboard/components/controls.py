@@ -11,6 +11,7 @@ from dashboard.components.charts import (
     stacked_bar_chart,
 )
 from dashboard.config.sources import fred_source_caption
+from dashboard.data.recessions import load_recession_periods
 from dashboard.utils.daterange import clip_to_range, range_control
 from dashboard.utils.transforms import to_quarter_end
 
@@ -38,6 +39,20 @@ def clip_series_dict(
 def _clip_series(series: pd.Series, range_label: str, freq: str | None = None) -> pd.Series:
     clipped = clip_to_range(series, range_label)
     return to_quarter_end(clipped) if freq == "Q" else clipped
+
+
+def _recession_periods_in_range(series_list: list[pd.Series]):
+    """Recession periods overlapping the chart's already-clipped date
+    range. Plotly's add_vrect shapes count toward x-axis autorange, so an
+    un-filtered 1990-present period list would silently widen a 1Y/5Y chart
+    back out to show the full recession history.
+    """
+    non_empty = [series.dropna() for series in series_list if not series.dropna().empty]
+    if not non_empty:
+        return []
+    lo = min(series.index.min() for series in non_empty)
+    hi = max(series.index.max() for series in non_empty)
+    return [(start, end) for start, end in load_recession_periods() if end >= lo and start <= hi]
 
 
 def show_data_errors(errors: dict[str, str]) -> None:
@@ -72,8 +87,15 @@ def render_line_section(
         range_label = chart_header(title, key, description)
         clipped = clip_series_dict(data, range_label, freq)
         if any(not series.dropna().empty for series in clipped.values()):
+            recession_periods = _recession_periods_in_range(list(clipped.values()))
             fig = multi_line_chart(
-                clipped, freq, unit, y_title=y_title, zero_line=zero_line, reference_lines=reference_lines
+                clipped,
+                freq,
+                unit,
+                y_title=y_title,
+                zero_line=zero_line,
+                reference_lines=reference_lines,
+                recession_periods=recession_periods,
             )
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
@@ -102,7 +124,18 @@ def render_stacked_bar_section(
             label, series = total_line
             clipped_total = (label, _clip_series(series, range_label, freq))
         if any(not series.dropna().empty for series in clipped.values()):
-            fig = stacked_bar_chart(clipped, freq, unit, y_title=y_title, total_line=clipped_total)
+            series_for_range = list(clipped.values())
+            if clipped_total is not None:
+                series_for_range.append(clipped_total[1])
+            recession_periods = _recession_periods_in_range(series_for_range)
+            fig = stacked_bar_chart(
+                clipped,
+                freq,
+                unit,
+                y_title=y_title,
+                total_line=clipped_total,
+                recession_periods=recession_periods,
+            )
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
             st.info("No data available.")
@@ -128,8 +161,14 @@ def render_dual_axis_section(
         left_clipped = (left_label, _clip_series(left_series, range_label, freq), left_unit)
         right_clipped = (right_label, _clip_series(right_series, range_label, freq), right_unit)
         if not left_series.dropna().empty or not right_series.dropna().empty:
+            recession_periods = _recession_periods_in_range([left_clipped[1], right_clipped[1]])
             fig = dual_axis_chart(
-                left_clipped, right_clipped, freq, left_title=left_title, right_title=right_title
+                left_clipped,
+                right_clipped,
+                freq,
+                left_title=left_title,
+                right_title=right_title,
+                recession_periods=recession_periods,
             )
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
@@ -154,7 +193,10 @@ def render_area_section(
         range_label = chart_header(title, key, description)
         clipped = clip_series_dict(data, range_label, freq)
         if any(not series.dropna().empty for series in clipped.values()):
-            fig = area_chart(clipped, freq, unit, y_title=y_title, zero_line=zero_line)
+            recession_periods = _recession_periods_in_range(list(clipped.values()))
+            fig = area_chart(
+                clipped, freq, unit, y_title=y_title, zero_line=zero_line, recession_periods=recession_periods
+            )
             st.plotly_chart(fig, use_container_width=True, key=f"fig_{key}")
         else:
             st.info("No data available.")

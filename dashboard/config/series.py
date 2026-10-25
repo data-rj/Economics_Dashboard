@@ -8,6 +8,12 @@ age-participation chart uses the buckets FRED actually publishes (16-19,
 25-54, 55+) rather than the originally-requested cut points.
 """
 
+# ---- Shared (used across multiple pages) ----
+# NBER-based recession indicator, monthly 0/1 dummy (trough method: shaded
+# from the month after the peak through the trough month, peak month
+# excluded) — used to shade recession periods behind every chart.
+RECESSION_INDICATOR = "USREC"
+
 # ---- GDP / Economic Overview ----
 REAL_GDP = "GDPC1"  # Real GDP, quarterly, SAAR, chained $ -> used for YoY%
 GDP_QOQ_ANNUALIZED = "A191RL1Q225SBEA"  # Real GDP, % change from preceding period, annual rate

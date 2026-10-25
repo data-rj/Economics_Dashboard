@@ -30,6 +30,9 @@ STATUS = {
 GRID_COLOR = "rgba(128,128,128,0.20)"
 ZERO_LINE_COLOR = "rgba(128,128,128,0.45)"
 AXIS_LINE_COLOR = "rgba(128,128,128,0.35)"
+# NBER recession-period shading — neutral gray, low-opacity so it always
+# sits behind the data regardless of series color.
+RECESSION_SHADE_COLOR = "rgba(128,128,128,0.12)"
 
 # FRED API
 FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"

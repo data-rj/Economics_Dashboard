@@ -19,9 +19,12 @@ from dashboard.config.settings import (
     AXIS_LINE_COLOR,
     CATEGORICAL_ORDER,
     GRID_COLOR,
+    RECESSION_SHADE_COLOR,
     ZERO_LINE_COLOR,
 )
 from dashboard.utils.formatting import format_value, legend_label
+
+RecessionPeriods = list[tuple[pd.Timestamp, pd.Timestamp]]
 
 BASE_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
@@ -74,6 +77,7 @@ def multi_line_chart(
     y_title: str | None = None,
     zero_line: bool = False,
     reference_lines: list[tuple[float, str, str]] | None = None,
+    recession_periods: RecessionPeriods | None = None,
 ) -> go.Figure:
     """reference_lines: optional (value, label, color) threshold lines —
     e.g. labeled bands for a ratio chart. Drawn dashed with an inline
@@ -109,6 +113,7 @@ def multi_line_chart(
     fig.update_layout(**BASE_LAYOUT)
     fig.update_xaxes(**_axis_style())
     fig.update_yaxes(**_axis_style(title=y_title))
+    _add_recession_bands(fig, recession_periods)
     return fig
 
 
@@ -118,6 +123,7 @@ def stacked_bar_chart(
     unit: str,
     y_title: str | None = None,
     total_line: tuple[str, pd.Series] | None = None,
+    recession_periods: RecessionPeriods | None = None,
 ) -> go.Figure:
     fig = go.Figure()
     for i, (label, series) in enumerate(series_dict.items()):
@@ -149,6 +155,7 @@ def stacked_bar_chart(
     fig.add_hline(y=0, line_width=1, line_color=ZERO_LINE_COLOR)
     fig.update_xaxes(**_axis_style())
     fig.update_yaxes(**_axis_style(title=y_title))
+    _add_recession_bands(fig, recession_periods)
     return fig
 
 
@@ -158,6 +165,7 @@ def dual_axis_chart(
     freq: str,
     left_title: str | None = None,
     right_title: str | None = None,
+    recession_periods: RecessionPeriods | None = None,
 ) -> go.Figure:
     """left/right = (label, series, unit). Explicit 2nd-axis chart, used
     only where the dashboard spec calls for it by name.
@@ -198,6 +206,7 @@ def dual_axis_chart(
         **BASE_LAYOUT,
     )
     fig.update_xaxes(**_axis_style())
+    _add_recession_bands(fig, recession_periods)
     return fig
 
 
@@ -207,6 +216,7 @@ def area_chart(
     unit: str,
     y_title: str | None = None,
     zero_line: bool = True,
+    recession_periods: RecessionPeriods | None = None,
 ) -> go.Figure:
     """Single-axis filled area chart — e.g. a standalone deficit/surplus
     series where a second axis isn't needed.
@@ -232,7 +242,17 @@ def area_chart(
     fig.update_layout(**BASE_LAYOUT)
     fig.update_xaxes(**_axis_style())
     fig.update_yaxes(**_axis_style(title=y_title))
+    _add_recession_bands(fig, recession_periods)
     return fig
+
+
+def _add_recession_bands(fig: go.Figure, periods: RecessionPeriods | None) -> None:
+    """Shade NBER recession periods behind the data on every chart —
+    a neutral, low-opacity band (never a series color, never a status
+    color) so it reads as context, not data.
+    """
+    for start, end in periods or []:
+        fig.add_vrect(x0=start, x1=end, fillcolor=RECESSION_SHADE_COLOR, line_width=0, layer="below")
 
 
 def _to_rgba(hex_color: str, alpha: float) -> str:
