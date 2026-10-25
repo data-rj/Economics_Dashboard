@@ -43,6 +43,17 @@ def moving_average(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window=window, min_periods=window).mean()
 
 
+def trailing_time_average(series: pd.Series, window: str) -> pd.Series:
+    """Rolling mean over a calendar-time window (e.g. "90D" for ~3 months),
+    for irregular-cadence series (daily data with weekend/holiday gaps)
+    where moving_average's row-count window wouldn't line up with
+    calendar time.
+    """
+    if series.empty:
+        return series
+    return series.rolling(window).mean()
+
+
 def trailing_sum(series: pd.Series, window: int) -> pd.Series:
     return series.rolling(window=window, min_periods=window).sum()
 

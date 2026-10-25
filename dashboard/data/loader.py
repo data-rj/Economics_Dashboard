@@ -22,6 +22,7 @@ from dashboard.utils.transforms import (
     ratio,
     resample_mean,
     trailing_sum,
+    trailing_time_average,
     window_annualized_pct,
     yoy_pct,
 )
@@ -463,9 +464,22 @@ def load_delinquencies() -> tuple[dict[str, pd.Series], dict[str, str]]:
 def load_corporate_kpis() -> list[dict]:
     profits_data, profits_errors = load_corporate_profits_yoy()
     indpro_data, indpro_errors = load_industrial_production()
-    spreads_data, spreads_errors = load_bond_spreads()
 
     capacity_label, capacity_series, capacity_unit = indpro_data["right"]
+
+    # The underlying loaders only return derived (YoY%) series — re-fetch
+    # raw levels for trend sub-metrics. Hits the cache (same series
+    # already fetched above/elsewhere this run), not a new request.
+    cp_raw, _cp_raw_err = _fetch(s.CORPORATE_PROFITS)
+    cp_qoq_annualized = period_annualized_pct(cp_raw, "Q")
+
+    indpro_raw, _indpro_raw_err = _fetch(s.INDUSTRIAL_PRODUCTION)
+    indpro_3mo_annualized = window_annualized_pct(indpro_raw, "M", 3)
+
+    capacity_3mo_avg = moving_average(capacity_series, 3)
+
+    hy_spread, hy_err = _fetch(s.HIGH_YIELD_COMPOSITE_OAS)
+    hy_3mo_avg = trailing_time_average(hy_spread, "90D")
 
     return [
         kpi_from_series(
@@ -474,6 +488,7 @@ def load_corporate_kpis() -> list[dict]:
             "Q",
             "pct",
             profits_errors["Corporate Profits YoY%"],
+            sub_metrics=[("QoQ Annualized", cp_qoq_annualized, "pct")],
         ),
         kpi_from_series(
             "Industrial Production YoY%",
@@ -481,12 +496,23 @@ def load_corporate_kpis() -> list[dict]:
             "M",
             "pct",
             indpro_errors["Industrial Production YoY%"],
+            sub_metrics=[("3-Mo Annualized", indpro_3mo_annualized, "pct")],
         ),
         kpi_from_series(
-            capacity_label, capacity_series, "M", capacity_unit, indpro_errors["Capacity Utilization"]
+            capacity_label,
+            capacity_series,
+            "M",
+            capacity_unit,
+            indpro_errors["Capacity Utilization"],
+            sub_metrics=[("3-Mo Avg", capacity_3mo_avg, "pct")],
         ),
         kpi_from_series(
-            "Baa/BBB Spread", spreads_data["Baa/BBB"], "D", "pct", spreads_errors["Baa/BBB"]
+            "High Yield Composite OAS Spread",
+            hy_spread,
+            "D",
+            "pct",
+            hy_err,
+            sub_metrics=[("3-Mo Avg", hy_3mo_avg, "pct")],
         ),
     ]
 
@@ -562,6 +588,18 @@ def load_investment_kpis() -> list[dict]:
 
     ratio_label, ratio_series, ratio_unit = inventory_data["right"]
 
+    # load_fixed_investment_yoy() only returns derived (YoY%) series — the
+    # QoQ-annualized sub-metric needs the raw levels. Hits the cache (same
+    # series already fetched above), not a new network request.
+    nonres_raw, _nonres_raw_err = _fetch(s.NONRESIDENTIAL_FIXED_INVESTMENT_REAL)
+    nonres_qoq_annualized = period_annualized_pct(nonres_raw, "Q")
+
+    res_raw, _res_raw_err = _fetch(s.RESIDENTIAL_FIXED_INVESTMENT_REAL)
+    res_qoq_annualized = period_annualized_pct(res_raw, "Q")
+
+    starts_3mo_avg = moving_average(housing_data["Housing Starts"], 3)
+    inventory_ratio_3mo_avg = moving_average(ratio_series, 3)
+
     return [
         kpi_from_series(
             "Nonresidential Fixed Investment YoY%",
@@ -569,6 +607,7 @@ def load_investment_kpis() -> list[dict]:
             "Q",
             "pct",
             fixed_errors["Nonresidential Fixed Investment YoY%"],
+            sub_metrics=[("QoQ Annualized", nonres_qoq_annualized, "pct")],
         ),
         kpi_from_series(
             "Residential Fixed Investment YoY%",
@@ -576,12 +615,23 @@ def load_investment_kpis() -> list[dict]:
             "Q",
             "pct",
             fixed_errors["Residential Fixed Investment YoY%"],
+            sub_metrics=[("QoQ Annualized", res_qoq_annualized, "pct")],
         ),
         kpi_from_series(
-            "Housing Starts", housing_data["Housing Starts"], "M", "thousands", housing_errors["Housing Starts"]
+            "Housing Starts",
+            housing_data["Housing Starts"],
+            "M",
+            "thousands",
+            housing_errors["Housing Starts"],
+            sub_metrics=[("3-Mo Avg", starts_3mo_avg, "thousands")],
         ),
         kpi_from_series(
-            ratio_label, ratio_series, "M", ratio_unit, inventory_errors["Inventory-to-Sales Ratio"]
+            ratio_label,
+            ratio_series,
+            "M",
+            ratio_unit,
+            inventory_errors["Inventory-to-Sales Ratio"],
+            sub_metrics=[("3-Mo Avg", inventory_ratio_3mo_avg, ratio_unit)],
         ),
     ]
 
