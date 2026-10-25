@@ -679,10 +679,17 @@ def load_inventory_ratio() -> tuple[dict[str, pd.Series], dict[str, str]]:
 
 def load_government_kpis() -> list[dict]:
     gov_data, gov_errors = load_gov_consumption_yoy()
-    deficit_debt_data, deficit_debt_errors = load_federal_deficit_debt()
+    deficit_data, deficit_errors = load_federal_deficit()
+    debt_data, debt_errors = load_federal_debt_metrics()
 
-    deficit_label, deficit_series, deficit_unit = deficit_debt_data["area"]
-    debt_label, debt_series, debt_unit = deficit_debt_data["line"]
+    gov_raw, _gov_raw_err = _fetch(s.GOV_CONSUMPTION_INVESTMENT_REAL)
+    gov_qoq_annualized = period_annualized_pct(gov_raw, "Q")
+
+    deficit_series = deficit_data["Federal Deficit (TTM)"]
+    deficit_yoy_change = diff(deficit_series, 12)  # monthly series -> 12 periods = 1 year
+
+    debt_label, debt_series, debt_unit = debt_data["left"]
+    debt_yoy_change = diff(debt_series, 4)  # quarterly series -> 4 periods = 1 year
 
     return [
         kpi_from_series(
@@ -691,12 +698,23 @@ def load_government_kpis() -> list[dict]:
             "Q",
             "pct",
             gov_errors["Gov't Consumption & Investment YoY%"],
+            sub_metrics=[("QoQ Annualized", gov_qoq_annualized, "pct")],
         ),
         kpi_from_series(
-            deficit_label, deficit_series, "M", deficit_unit, deficit_debt_errors["Federal Deficit (TTM)"]
+            "Federal Deficit (TTM)",
+            deficit_series,
+            "M",
+            "usd_b",
+            deficit_errors["Federal Deficit (TTM)"],
+            sub_metrics=[("YoY Change", deficit_yoy_change, "usd_b")],
         ),
         kpi_from_series(
-            debt_label, debt_series, "Q", debt_unit, deficit_debt_errors["Federal Debt (% of GDP)"]
+            debt_label,
+            debt_series,
+            "Q",
+            debt_unit,
+            debt_errors[debt_label],
+            sub_metrics=[("YoY Change", debt_yoy_change, "pp")],
         ),
     ]
 
@@ -717,15 +735,32 @@ def load_federal_outlays_receipts() -> tuple[dict[str, pd.Series], dict[str, str
     }
 
 
-def load_federal_deficit_debt() -> tuple[dict, dict[str, str]]:
+def load_federal_deficit() -> tuple[dict[str, pd.Series], dict[str, str]]:
     deficit, e1 = _fetch(s.FEDERAL_DEFICIT_MONTHLY)
-    debt_pct_gdp, e2 = _fetch(s.FEDERAL_DEBT_PCT_GDP)
     ttm_deficit = trailing_sum(deficit, 12) / 1000  # millions -> billions
+    return {"Federal Deficit (TTM)": ttm_deficit}, {"Federal Deficit (TTM)": e1}
+
+
+def load_federal_debt_metrics() -> tuple[dict, dict[str, str]]:
+    """Debt held by the public (excludes intragovernmental holdings like the
+    Social Security trust fund) as a share of GDP and of aggregate household
+    net worth ("US wealth") — two different denominators for the same debt
+    level, on separate axes since they sit at very different magnitudes
+    (~95-100% of GDP vs. ~15-20% of wealth).
+    """
+    debt_pct_gdp, e1 = _fetch(s.FEDERAL_DEBT_PUBLIC_PCT_GDP)
+    debt_level, e2 = _fetch(s.FEDERAL_DEBT_PUBLIC_LEVEL)
+    net_worth, e3 = _fetch(s.HOUSEHOLD_NET_WORTH)
+    debt_pct_wealth = pct_of(debt_level, net_worth)
     data = {
-        "area": ("Federal Deficit (TTM)", ttm_deficit, "usd_b"),
-        "line": ("Federal Debt (% of GDP)", debt_pct_gdp, "pct"),
+        "left": ("Publicly Held Federal Debt (% of GDP)", debt_pct_gdp, "pct"),
+        "right": ("Publicly Held Federal Debt (% of US Wealth)", debt_pct_wealth, "pct"),
     }
-    return data, {"Federal Deficit (TTM)": e1, "Federal Debt (% of GDP)": e2}
+    errors = {
+        "Publicly Held Federal Debt (% of GDP)": e1,
+        "Publicly Held Federal Debt (% of US Wealth)": e2 or e3,
+    }
+    return data, errors
 
 
 # ---------------- Prices & Monetary Policy ----------------

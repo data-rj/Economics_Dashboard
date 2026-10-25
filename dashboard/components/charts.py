@@ -29,6 +29,10 @@ BASE_LAYOUT = dict(
     hovermode="x unified",
     margin=dict(l=10, r=10, t=10, b=10),
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    # Plotly defaults showlegend to False for a single-trace figure — but
+    # this dashboard always embeds each series' latest value/period in its
+    # legend entry, so the legend must show even with just one series.
+    showlegend=True,
     font=dict(size=13),
 )
 
@@ -197,52 +201,37 @@ def dual_axis_chart(
     return fig
 
 
-def area_line_dual_axis_chart(
-    area: tuple[str, pd.Series, str],
-    line: tuple[str, pd.Series, str],
+def area_chart(
+    series_dict: dict[str, pd.Series],
     freq: str,
-    area_title: str | None = None,
-    line_title: str | None = None,
+    unit: str,
+    y_title: str | None = None,
+    zero_line: bool = True,
 ) -> go.Figure:
-    area_label, area_series, area_unit = area
-    line_label, line_series, line_unit = line
-    area_color = CATEGORICAL_ORDER[0]
-    line_color = CATEGORICAL_ORDER[1]
-
+    """Single-axis filled area chart — e.g. a standalone deficit/surplus
+    series where a second axis isn't needed.
+    """
     fig = go.Figure()
-    clean_area = area_series.dropna()
-    fig.add_trace(
-        go.Scatter(
-            x=clean_area.index,
-            y=clean_area.values,
-            mode="lines",
-            fill="tozeroy",
-            name=legend_label(area_label, area_series, freq, area_unit),
-            line=dict(width=1.5, color=area_color),
-            fillcolor=_to_rgba(area_color, 0.25),
-            yaxis="y1",
-            hovertemplate=_hover_fmt(area_unit) + "<extra>" + area_label + "</extra>",
+    for i, (label, series) in enumerate(series_dict.items()):
+        color = CATEGORICAL_ORDER[i % len(CATEGORICAL_ORDER)]
+        clean = series.dropna()
+        fig.add_trace(
+            go.Scatter(
+                x=clean.index,
+                y=clean.values,
+                mode="lines",
+                fill="tozeroy",
+                name=legend_label(label, series, freq, unit),
+                line=dict(width=1.5, color=color),
+                fillcolor=_to_rgba(color, 0.25),
+                hovertemplate=_hover_fmt(unit) + "<extra>" + label + "</extra>",
+            )
         )
-    )
-    clean_line = line_series.dropna()
-    fig.add_trace(
-        go.Scatter(
-            x=clean_line.index,
-            y=clean_line.values,
-            mode="lines",
-            name=legend_label(line_label, line_series, freq, line_unit),
-            line=dict(width=2, color=line_color),
-            yaxis="y2",
-            hovertemplate=_hover_fmt(line_unit) + "<extra>" + line_label + "</extra>",
-        )
-    )
-    fig.update_layout(
-        yaxis=_axis_style(title=area_title, color=area_color),
-        yaxis2=dict(**_axis_style(title=line_title, color=line_color), overlaying="y", side="right"),
-        **BASE_LAYOUT,
-    )
-    fig.add_hline(y=0, line_width=1, line_color=ZERO_LINE_COLOR)
+    if zero_line:
+        fig.add_hline(y=0, line_width=1, line_color=ZERO_LINE_COLOR)
+    fig.update_layout(**BASE_LAYOUT)
     fig.update_xaxes(**_axis_style())
+    fig.update_yaxes(**_axis_style(title=y_title))
     return fig
 
 

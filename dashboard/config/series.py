@@ -105,7 +105,13 @@ GOV_CONSUMPTION_INVESTMENT_REAL = "GCEC1"
 FEDERAL_RECEIPTS = "FGRECPT"
 FEDERAL_OUTLAYS = "FGEXPND"
 FEDERAL_DEFICIT_MONTHLY = "MTSDS133FMS"
-FEDERAL_DEBT_PCT_GDP = "GFDEGDQ188S"
+
+# Debt held by the public excludes intragovernmental holdings (e.g. the
+# Social Security trust fund) — the Treasury/OMB measure of debt actually
+# owed to outside creditors, as opposed to GFDEGDQ188S (gross/total debt).
+FEDERAL_DEBT_PUBLIC_PCT_GDP = "FYGFGDQ188S"
+FEDERAL_DEBT_PUBLIC_LEVEL = "FYGFDPUN"  # millions of dollars
+HOUSEHOLD_NET_WORTH = "TNWBSHNO"  # Fed Z.1, millions of dollars — "US wealth"
 
 # ---- Prices & Monetary Policy ----
 CPI = "CPIAUCSL"
