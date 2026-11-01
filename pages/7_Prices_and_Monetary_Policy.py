@@ -73,6 +73,8 @@ render_dual_axis_section(
     data,
     errors,
     freq="M",
+    right_freq="Q",
+    description="M2 Velocity (GDP ÷ M2) is published quarterly; M2 Money Supply YoY% is monthly.",
     left_title="M2 YoY %",
     right_title="M2 Velocity",
     sources=[s.M2_MONEY_SUPPLY, s.M2_VELOCITY],

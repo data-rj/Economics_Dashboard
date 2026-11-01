@@ -153,13 +153,22 @@ def render_dual_axis_section(
     left_title: str | None = None,
     right_title: str | None = None,
     sources: list[str] | str | None = None,
+    left_freq: str | None = None,
+    right_freq: str | None = None,
 ) -> None:
+    """left_freq/right_freq: override `freq` for date-range clipping and the
+    quarter-end shift on one side only, for a mixed-cadence pairing (e.g.
+    M2 YoY% is monthly but M2 Velocity is quarterly). `freq` alone still
+    drives the chart's hover/legend period formatting for both sides — a
+    quarter-end-shifted date formatted with freq="M" already reads as e.g.
+    "Jun 2026", matching the quarter-end convention used on KPI tiles.
+    """
     with st.container(border=True):
         range_label = chart_header(title, key, description)
         left_label, left_series, left_unit = data["left"]
         right_label, right_series, right_unit = data["right"]
-        left_clipped = (left_label, _clip_series(left_series, range_label, freq), left_unit)
-        right_clipped = (right_label, _clip_series(right_series, range_label, freq), right_unit)
+        left_clipped = (left_label, _clip_series(left_series, range_label, left_freq or freq), left_unit)
+        right_clipped = (right_label, _clip_series(right_series, range_label, right_freq or freq), right_unit)
         if not left_series.dropna().empty or not right_series.dropna().empty:
             recession_periods = _recession_periods_in_range([left_clipped[1], right_clipped[1]])
             fig = dual_axis_chart(
