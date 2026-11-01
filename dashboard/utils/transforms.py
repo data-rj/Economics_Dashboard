@@ -86,6 +86,19 @@ def to_quarter_end(series: pd.Series) -> pd.Series:
     return series.set_axis(series.index.to_period("Q").end_time.normalize())
 
 
+def to_month_end(series: pd.Series) -> pd.Series:
+    """Relabel a monthly series' index from FRED's month-START convention
+    (e.g. 2025-09-01) to the month's last calendar day (2025-09-30), for
+    display only. Values and ordering are unchanged. Unlike to_quarter_end,
+    this isn't applied dashboard-wide — only where a chart explicitly opts
+    in, since most monthly charts' month-start dates aren't otherwise
+    reported as wrong.
+    """
+    if series.empty:
+        return series
+    return series.set_axis(series.index.to_period("M").end_time.normalize())
+
+
 def drop_future(series: pd.Series, as_of: pd.Timestamp | None = None) -> pd.Series:
     """Truncate a series to remove any datapoints beyond `as_of` (default:
     today). Used for CBO Potential GDP, which is published with a forecast
