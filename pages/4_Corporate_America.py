@@ -1,6 +1,6 @@
 import streamlit as st
 
-from dashboard.components.controls import render_dual_axis_section, render_line_section
+from dashboard.components.controls import ChartGrid, render_dual_axis_section, render_line_section
 from dashboard.components.kpi import kpi_row
 from dashboard.config import series as s
 from dashboard.data import loader
@@ -11,97 +11,106 @@ kpi_row(loader.load_corporate_kpis())
 
 st.divider()
 
-data, errors = loader.load_corporate_profits_yoy()
-render_line_section(
-    "Corporate Profits YoY%",
-    "corp_profits_yoy",
-    data,
-    errors,
-    freq="Q",
-    unit="pct",
-    zero_line=True,
-    y_title="YoY % change",
-    sources=[s.CORPORATE_PROFITS],
-)
+grid = ChartGrid()
 
-data, errors = loader.load_corporate_profits_share_gdp()
-render_line_section(
-    "Corporate Profits as a Share of GDP",
-    "corp_profits_gdp",
-    data,
-    errors,
-    freq="Q",
-    unit="pct",
-    y_title="% of GDP",
-    sources=[s.CORPORATE_PROFITS, s.GDP_NOMINAL],
-)
+with grid.cell():
+    data, errors = loader.load_corporate_profits_yoy()
+    render_line_section(
+        "Corporate Profits YoY%",
+        "corp_profits_yoy",
+        data,
+        errors,
+        freq="Q",
+        unit="pct",
+        zero_line=True,
+        y_title="YoY % change",
+        sources=[s.CORPORATE_PROFITS],
+    )
 
-data, errors = loader.load_industrial_production()
-render_dual_axis_section(
-    "Industrial Production & Capacity Utilization",
-    "indpro",
-    data,
-    errors,
-    freq="M",
-    left_title="Industrial Production, YoY %",
-    right_title="Capacity Utilization, %",
-    sources=[s.INDUSTRIAL_PRODUCTION, s.CAPACITY_UTILIZATION],
-)
+with grid.cell():
+    data, errors = loader.load_corporate_profits_share_gdp()
+    render_line_section(
+        "Corporate Profits as a Share of GDP",
+        "corp_profits_gdp",
+        data,
+        errors,
+        freq="Q",
+        unit="pct",
+        y_title="% of GDP",
+        sources=[s.CORPORATE_PROFITS, s.GDP_NOMINAL],
+    )
 
-data, errors = loader.load_manufacturing_ratios()
-render_dual_axis_section(
-    "Manufacturing Orders-to-Inventories Ratios",
-    "mfg_orders_inventories",
-    data,
-    errors,
-    freq="M",
-    description="New orders ÷ inventories — a rising ratio signals demand outrunning stock "
-    "(restocking); a falling ratio signals an inventory overhang.",
-    left_title="Durable Goods, Orders / Inventories",
-    right_title="Total Manufacturing, Orders / Inventories",
-    sources=[
-        s.DURABLE_GOODS_NEW_ORDERS,
-        s.DURABLE_GOODS_INVENTORIES,
-        s.TOTAL_MFG_NEW_ORDERS,
-        s.TOTAL_MFG_INVENTORIES,
-    ],
-)
+with grid.cell():
+    data, errors = loader.load_industrial_production()
+    render_dual_axis_section(
+        "Industrial Production & Capacity Utilization",
+        "indpro",
+        data,
+        errors,
+        freq="M",
+        left_title="Industrial Production, YoY %",
+        right_title="Capacity Utilization, %",
+        sources=[s.INDUSTRIAL_PRODUCTION, s.CAPACITY_UTILIZATION],
+    )
 
-data, errors = loader.load_bond_spreads()
-render_line_section(
-    "Corporate Bond Spreads by Rating",
-    "bond_spreads",
-    data,
-    errors,
-    freq="D",
-    unit="pct",
-    description="Option-adjusted spread over Treasuries.",
-    y_title="Spread (%)",
-    sources=[s.BOND_SPREAD_BBB, s.BOND_SPREAD_BB, s.BOND_SPREAD_B, s.BOND_SPREAD_CCC],
-)
+with grid.cell():
+    data, errors = loader.load_manufacturing_ratios()
+    render_dual_axis_section(
+        "Manufacturing Orders-to-Inventories Ratios",
+        "mfg_orders_inventories",
+        data,
+        errors,
+        freq="M",
+        description="New orders ÷ inventories — a rising ratio signals demand outrunning stock "
+        "(restocking); a falling ratio signals an inventory overhang.",
+        left_title="Durable Goods, Orders / Inventories",
+        right_title="Total Manufacturing, Orders / Inventories",
+        sources=[
+            s.DURABLE_GOODS_NEW_ORDERS,
+            s.DURABLE_GOODS_INVENTORIES,
+            s.TOTAL_MFG_NEW_ORDERS,
+            s.TOTAL_MFG_INVENTORIES,
+        ],
+    )
 
-data, errors = loader.load_corporate_delinquency_chargeoff()
-render_line_section(
-    "Corporate Delinquencies & Charge-Offs",
-    "corp_credit_health",
-    data,
-    errors,
-    freq="Q",
-    unit="pct",
-    description="Business loans, commercial banks.",
-    y_title="%",
-    sources=[s.BUSINESS_LOAN_DELINQ, s.BUSINESS_LOAN_CHARGEOFF],
-)
+with grid.cell():
+    data, errors = loader.load_bond_spreads()
+    render_line_section(
+        "Corporate Bond Spreads by Rating",
+        "bond_spreads",
+        data,
+        errors,
+        freq="D",
+        unit="rate",
+        description="Option-adjusted spread over Treasuries.",
+        y_title="Spread (%)",
+        sources=[s.BOND_SPREAD_BBB, s.BOND_SPREAD_BB, s.BOND_SPREAD_B, s.BOND_SPREAD_CCC],
+    )
 
-data, errors = loader.load_bank_loan_allowance()
-render_dual_axis_section(
-    "Bank Loan Growth & Credit Loss Allowance Coverage",
-    "bank_loan_allowance",
-    data,
-    errors,
-    freq="W",
-    description="Allowance for credit losses held against total loans & leases, all commercial banks.",
-    left_title="Total Loans & Leases, YoY %",
-    right_title="Allowance, % of Total Loans",
-    sources=[s.TOTAL_BANK_LOANS_LEASES, s.ALLOWANCE_CREDIT_LOSSES],
-)
+with grid.cell():
+    data, errors = loader.load_corporate_delinquency_chargeoff()
+    render_line_section(
+        "Corporate Delinquencies & Charge-Offs",
+        "corp_credit_health",
+        data,
+        errors,
+        freq="Q",
+        unit="pct",
+        description="Business loans, commercial banks.",
+        y_title="%",
+        sources=[s.BUSINESS_LOAN_DELINQ, s.BUSINESS_LOAN_CHARGEOFF],
+    )
+
+with grid.cell(full_width=True):
+    data, errors = loader.load_bank_loan_allowance()
+    render_dual_axis_section(
+        "Bank Loan Growth & Credit Loss Allowance Coverage",
+        "bank_loan_allowance",
+        data,
+        errors,
+        freq="W",
+        description="Allowance for credit losses held against total loans & leases, all commercial banks.",
+        left_title="Total Loans & Leases, YoY %",
+        right_title="Allowance, % of Total Loans",
+        sources=[s.TOTAL_BANK_LOANS_LEASES, s.ALLOWANCE_CREDIT_LOSSES],
+    )

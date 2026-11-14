@@ -6,21 +6,22 @@ section's data.
 from __future__ import annotations
 
 import pandas as pd
-import streamlit as st
 
 from dashboard.config.series import RECESSION_INDICATOR
-from dashboard.config.settings import CACHE_TTL_SECONDS
 from dashboard.data.fred_client import safe_fetch_series
 
 START = "1990-01-01"
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
 def load_recession_periods() -> list[tuple[pd.Timestamp, pd.Timestamp]]:
     """NBER recession periods (FRED USREC, trough method) as (start, end)
     date pairs, for shading behind every chart. `end` is the first day of
     the month after the last recession month, so a shaded band covers that
     month's full width rather than stopping at its first day.
+
+    Deliberately not cached here: the underlying fetch already is, and it
+    only caches successes. Caching this wrapper too would pin a one-off
+    failed fetch's empty result — i.e. no shading anywhere — for an hour.
     """
     series, _ = safe_fetch_series(RECESSION_INDICATOR, START)
     clean = series.dropna()

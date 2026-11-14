@@ -12,7 +12,7 @@ import pandas as pd
 from dashboard.config import series as s
 from dashboard.data.fred_client import safe_fetch_series
 from dashboard.data.nowcasts import get_nyfed_nowcast
-from dashboard.utils.formatting import latest_value_and_period, quarter_end_month_label
+from dashboard.utils.formatting import kpi_period_label, latest_value_and_period
 from dashboard.utils.transforms import (
     align_to_common_end,
     diff,
@@ -42,21 +42,24 @@ def kpi_from_series(
     unit: str,
     error: str | None,
     sub_metrics: list[tuple[str, pd.Series, str]] | None = None,
-    show_delta: bool = False,
-    delta_invert: bool = False,
+    favorable: str | None = None,
     status_fn: callable | None = None,
 ) -> dict:
     """Build one kpi_row() item from an already-transformed series — used
     to turn page-top KPI tiles out of the same data a page's charts fetch,
     without issuing any extra requests.
 
+    Every tile carries the change from the previous observation (the last
+    two non-null points of `series`).
     sub_metrics: extra (label, series, unit) lines shown under the main
-    value, e.g. a longer moving-average alongside the headline figure.
-    show_delta: show a colored period-over-period change indicator (the
-    last two non-null points of `series`). delta_invert flips the
-    good/bad color convention for series where a decrease is favorable
-    (e.g. jobless claims).
-    status_fn: optional callable(value) -> {"text", "color"} | None —
+    value, e.g. a longer moving-average alongside the headline figure. A
+    sub-metric whose latest period differs from the headline's is tagged
+    with its own period, so the tile never implies they describe the same
+    month when they don't.
+    favorable: "up" or "down" where one direction of change is plainly the
+    good one (e.g. "down" for jobless claims) — colors the change arrow.
+    Leave None for series where that would be an editorial call.
+    status_fn: optional callable(value) -> {"text", "level"} | None —
     a qualitative status tag (e.g. "Severe Shortage") shown under the
     value, for series with a known interpretive threshold.
     """
@@ -74,12 +77,21 @@ def kpi_from_series(
         for sub_label, sub_series, sub_unit in sub_metrics:
             sub_clean = sub_series.dropna()
             sub_value = sub_clean.iloc[-1] if not sub_clean.empty else None
-            item["sub_metrics"].append({"label": sub_label, "value": sub_value, "unit": sub_unit})
-    if show_delta and len(clean) >= 2:
+            sub_period = kpi_period_label(sub_clean.index[-1], freq) if not sub_clean.empty else None
+            item["sub_metrics"].append(
+                {
+                    "label": sub_label,
+                    "value": sub_value,
+                    "unit": sub_unit,
+                    "period": sub_period if sub_period != period else None,
+                }
+            )
+    if len(clean) >= 2:
         item["delta"] = {
             "value": clean.iloc[-1] - clean.iloc[-2],
             "unit": unit,
-            "invert": delta_invert,
+            "freq": freq,
+            "favorable": favorable,
         }
     if status_fn is not None and value is not None:
         status = status_fn(value)
@@ -96,32 +108,10 @@ def load_gdp_kpis() -> list[dict]:
     gdpnow, e3 = _fetch(s.GDPNOW)
     nyfed_value, nyfed_period, e4 = get_nyfed_nowcast()
 
-    gdp_yoy = yoy_pct(real_gdp, "Q").dropna()
-    gdp_qoq_clean = gdp_qoq.dropna()
-    gdpnow_clean = gdpnow.dropna()
-
     items = [
-        {
-            "label": "Real GDP YoY%",
-            "value": gdp_yoy.iloc[-1] if not gdp_yoy.empty else None,
-            "unit": "pct",
-            "period": quarter_end_month_label(gdp_yoy.index[-1]) if not gdp_yoy.empty else None,
-            "error": e1 if gdp_yoy.empty else None,
-        },
-        {
-            "label": "GDP QoQ Annualized",
-            "value": gdp_qoq_clean.iloc[-1] if not gdp_qoq_clean.empty else None,
-            "unit": "pct",
-            "period": quarter_end_month_label(gdp_qoq_clean.index[-1]) if not gdp_qoq_clean.empty else None,
-            "error": e2 if gdp_qoq_clean.empty else None,
-        },
-        {
-            "label": "Atlanta Fed GDPNow",
-            "value": gdpnow_clean.iloc[-1] if not gdpnow_clean.empty else None,
-            "unit": "pct",
-            "period": quarter_end_month_label(gdpnow_clean.index[-1]) if not gdpnow_clean.empty else None,
-            "error": e3 if gdpnow_clean.empty else None,
-        },
+        kpi_from_series("Real GDP YoY%", yoy_pct(real_gdp, "Q"), "Q", "pct", e1),
+        kpi_from_series("GDP QoQ Annualized", gdp_qoq, "Q", "pct", e2),
+        kpi_from_series("Atlanta Fed GDPNow", gdpnow, "Q", "pct", e3),
         {
             "label": "NY Fed Staff Nowcast",
             "value": nyfed_value,
@@ -192,10 +182,10 @@ TIGHTNESS_DETERIORATION = 0.8
 
 def _labor_tightness_status(value: float) -> dict | None:
     if value > TIGHTNESS_SEVERE_SHORTAGE:
-        return {"text": "Severe Shortage", "color": "orange"}
+        return {"text": "Severe Shortage", "level": "warning"}
     if value < TIGHTNESS_DETERIORATION:
-        return {"text": "Deteriorating", "color": "red"}
-    return {"text": "Balanced", "color": "gray"}
+        return {"text": "Deteriorating", "level": "critical"}
+    return {"text": "Balanced", "level": None}
 
 
 def load_labor_kpis() -> list[dict]:
@@ -250,8 +240,7 @@ def load_labor_kpis() -> list[dict]:
             "thousands",
             claims_errors["4-Week Moving Average"],
             sub_metrics=[("12-Wk Avg", avg12wk, "thousands")],
-            show_delta=True,
-            delta_invert=True,  # rising claims is unfavorable — shown in red
+            favorable="down",  # rising claims is unfavorable — arrow shown in red
         ),
         kpi_from_series(
             "Job Openings / Unemployed",
@@ -519,9 +508,9 @@ def load_corporate_kpis() -> list[dict]:
             "High Yield Composite OAS Spread",
             hy_spread,
             "D",
-            "pct",
+            "rate",
             hy_err,
-            sub_metrics=[("3-Mo Avg", hy_3mo_avg, "pct")],
+            sub_metrics=[("3-Mo Avg", hy_3mo_avg, "rate")],
         ),
     ]
 
@@ -832,17 +821,17 @@ def load_prices_kpis() -> list[dict]:
             "Fed Funds Rate",
             rates_data["Fed Funds Rate (Weekly Avg)"],
             "W",
-            "pct",
+            "rate",
             rates_errors["Fed Funds Rate (Weekly Avg)"],
-            sub_metrics=[("3-Mo Avg", ffr_3mo_avg, "pct")],
+            sub_metrics=[("3-Mo Avg", ffr_3mo_avg, "rate")],
         ),
         kpi_from_series(
             "10Y-2Y Treasury Spread",
             rates_data["10Y-2Y Spread (Weekly Avg)"],
             "W",
-            "pct",
+            "rate",
             rates_errors["10Y-2Y Spread (Weekly Avg)"],
-            sub_metrics=[("3-Mo Avg", spread_3mo_avg, "pct")],
+            sub_metrics=[("3-Mo Avg", spread_3mo_avg, "rate")],
         ),
     ]
 

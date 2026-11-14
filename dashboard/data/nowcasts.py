@@ -29,7 +29,7 @@ class NowcastFetchError(RuntimeError):
     pass
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner="Loading the NY Fed Staff Nowcast…")
 def _download_nyfed_workbook(url: str) -> bytes:
     try:
         resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})

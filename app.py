@@ -1,10 +1,17 @@
 """Entry point for the U.S. Economic Dashboard Streamlit app."""
 from __future__ import annotations
 
+import time
+
 import streamlit as st
 
-from dashboard.config.settings import APP_TITLE
-from dashboard.data.fred_client import has_api_key
+from dashboard.components.kpi import kpi_row
+from dashboard.config.settings import APP_TITLE, CACHE_TTL_SECONDS
+from dashboard.data import loader
+from dashboard.data.fred_client import clear_cached_data, has_api_key, last_fetch_time
+from dashboard.utils.daterange import global_range_control
+
+FRED_KEY_URL = "https://fred.stlouisfed.org/docs/api/api_key.html"
 
 st.set_page_config(page_title=APP_TITLE, page_icon="📊", layout="wide")
 
@@ -21,7 +28,7 @@ def render_sidebar() -> None:
             "FRED API key",
             type="password",
             help=(
-                "Get a free key at https://fred.stlouisfed.org/docs/api/api_key.html. "
+                f"Get a free key at {FRED_KEY_URL}. "
                 "Stored only for this browser session — never written to disk."
             ),
             key="fred_api_key_input",
@@ -32,34 +39,46 @@ def render_sidebar() -> None:
     else:
         st.sidebar.success("FRED API key configured.")
     st.sidebar.divider()
+    global_range_control()
     st.sidebar.caption(
-        "Each chart defaults to 5 years of history — use the range control "
-        "above a chart to expand to Max or shrink to 1 year."
+        "Charts default to 5 years of history. Each chart also has its own range buttons."
+    )
+
+
+def render_data_status() -> None:
+    """Rendered after the page has run, so it reflects this run's requests."""
+    st.sidebar.divider()
+    fetched = last_fetch_time()
+    if fetched is None:
+        status = "No data loaded yet."
+    else:
+        minutes = int((time.time() - fetched) // 60)
+        age = "just now" if minutes < 1 else f"{minutes} min ago"
+        status = f"Last request to FRED: {age}. Data is cached for up to {CACHE_TTL_SECONDS // 60} min."
+    st.sidebar.caption(status)
+    st.sidebar.button(
+        "Refresh data",
+        on_click=clear_cached_data,
+        help="Discard cached data and request everything again.",
+    )
+
+
+def render_missing_key_notice() -> None:
+    st.title(APP_TITLE)
+    st.info(
+        "This dashboard needs a FRED API key to load its data. Paste one into the "
+        f"sidebar, or set the `FRED_API_KEY` environment variable. Keys are free: {FRED_KEY_URL}"
     )
 
 
 def home() -> None:
     st.title(APP_TITLE)
-    st.markdown(
-        """
-Use the navigation in the sidebar to explore each section:
+    st.caption("The headline numbers from each section. Open a section for its charts.")
+    for page, load_kpis in SECTIONS:
+        st.markdown(f"#### {page.icon} {page.title}")
+        kpi_row(load_kpis())
+        st.page_link(page, label=f"Open {page.title} charts", icon=":material/arrow_forward:")
 
-- **Economic Overview** — GDP growth, GDP nowcasts, and the output gap
-- **Labor Market** — unemployment, payrolls, wages, claims, JOLTS, participation
-- **The Consumer** — spending, income, retail sales, household debt & delinquencies
-- **Corporate America** — profits, industrial production, credit spreads, business credit health
-- **Public & Private Investment** — fixed investment, housing, business inventories
-- **Government** — government spending, federal receipts/outlays, the deficit & debt
-- **Prices & Monetary Policy** — inflation, interest rates, money supply, the Fed's balance sheet
-
-All charts default to **5 years** of history and can be expanded to the full
-available history or narrowed to the trailing year. Every legend entry shows
-each series' most recent value and period.
-        """
-    )
-
-
-render_sidebar()
 
 overview = st.Page(
     "pages/1_Economic_Overview.py", title="Economic Overview", icon="📈", url_path="economic-overview"
@@ -84,7 +103,23 @@ prices = st.Page(
 )
 home_page = st.Page(home, title="Home", icon="🏠", url_path="", default=True)
 
+SECTIONS = [
+    (overview, loader.load_gdp_kpis),
+    (labor, loader.load_labor_kpis),
+    (consumer, loader.load_consumer_kpis),
+    (corporate, loader.load_corporate_kpis),
+    (investment, loader.load_investment_kpis),
+    (government, loader.load_government_kpis),
+    (prices, loader.load_prices_kpis),
+]
+
+render_sidebar()
 nav = st.navigation(
     [home_page, overview, labor, consumer, corporate, investment, government, prices]
 )
-nav.run()
+# Without a key every tile and chart would show the same error; say it once.
+if has_api_key():
+    nav.run()
+else:
+    render_missing_key_notice()
+render_data_status()

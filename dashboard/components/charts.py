@@ -5,10 +5,12 @@ Design choices (see dataviz skill):
 - Thin (2px) lines, transparent surface so it adapts to the Streamlit theme.
 - Unified hover (crosshair) tooltip on every line/area/bar chart.
 - Legend entries embed each series' most recent value + period per the spec.
-- A few charts below use a second y-axis because the task explicitly calls
-  for it (e.g. industrial production vs. capacity utilization, deficit vs.
-  debt/GDP). That is a deliberate exception to the usual one-axis rule,
-  made only where the user's spec names a "2nd axis" pairing.
+- Axis ticks carry their unit (%, $B, K, x) so a value never has to be
+  decoded from the axis title.
+- A few charts use a second y-axis because the spec explicitly calls for it
+  (e.g. industrial production vs. capacity utilization). That is a
+  deliberate exception to the usual one-axis rule; only the left axis draws
+  gridlines so the plot doesn't carry two competing grids.
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ import plotly.graph_objects as go
 from dashboard.config.settings import (
     AXIS_LINE_COLOR,
     CATEGORICAL_ORDER,
+    CHART_HEIGHT,
     GRID_COLOR,
     RECESSION_SHADE_COLOR,
     ZERO_LINE_COLOR,
@@ -30,6 +33,7 @@ BASE_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
     hovermode="x unified",
+    height=CHART_HEIGHT,
     margin=dict(l=10, r=10, t=10, b=10),
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
     # Plotly defaults showlegend to False for a single-trace figure — but
@@ -39,8 +43,22 @@ BASE_LAYOUT = dict(
     font=dict(size=13),
 )
 
+# d3-format's "$" puts the minus sign before the currency symbol (-$1,000),
+# which a plain tickprefix="$" would get wrong ($-1,000).
+_TICKS = {
+    "pct": dict(ticksuffix="%"),
+    "rate": dict(ticksuffix="%"),
+    "pp": dict(ticksuffix="pp"),
+    "ratio": dict(ticksuffix="x"),
+    "usd_b": dict(tickformat="$,.0f", ticksuffix="B"),
+    "usd_t": dict(tickformat="$,.2f", ticksuffix="T"),
+    # Explicit format: Plotly's default SI ticks would print 20,000 thousand
+    # jobs as "20k", which reads as twenty thousand.
+    "thousands": dict(tickformat=",.0f", ticksuffix="K"),
+}
 
-def _axis_style(title: str | None = None, tickformat: str | None = None, color: str | None = None) -> dict:
+
+def _axis_style(title: str | None = None, unit: str | None = None, color: str | None = None) -> dict:
     style = dict(
         showgrid=True,
         gridcolor=GRID_COLOR,
@@ -49,8 +67,7 @@ def _axis_style(title: str | None = None, tickformat: str | None = None, color: 
         linecolor=AXIS_LINE_COLOR,
         title=dict(text=title) if title else None,
     )
-    if tickformat:
-        style["tickformat"] = tickformat
+    style.update(_TICKS.get(unit, {}))
     if color:
         style["title"] = dict(text=title, font=dict(color=color)) if title else None
         style["tickfont"] = dict(color=color)
@@ -61,13 +78,19 @@ def _axis_style(title: str | None = None, tickformat: str | None = None, color: 
 def _hover_fmt(unit: str) -> str:
     return {
         "pct": "%{y:.1f}%",
+        "rate": "%{y:.2f}%",
         "pp": "%{y:.2f}pp",
         "ratio": "%{y:.2f}x",
-        "usd_b": "$%{y:,.0f}B",
-        "usd_t": "$%{y:,.2f}T",
+        "usd_b": "%{y:$,.0f}B",
+        "usd_t": "%{y:$,.2f}T",
         "thousands": "%{y:,.0f}K",
         "index": "%{y:,.1f}",
     }.get(unit, "%{y:,.2f}")
+
+
+def _spans_zero(series_list: list[pd.Series]) -> bool:
+    values = [s.dropna() for s in series_list if not s.dropna().empty]
+    return bool(values) and min(v.min() for v in values) < 0 < max(v.max() for v in values)
 
 
 def multi_line_chart(
@@ -75,18 +98,37 @@ def multi_line_chart(
     freq: str,
     unit: str,
     y_title: str | None = None,
-    zero_line: bool = False,
+    zero_line: bool | str = False,
     reference_lines: list[tuple[float, str, str]] | None = None,
     recession_periods: RecessionPeriods | None = None,
+    derived: dict[str, str] | None = None,
+    y_range: tuple[float, float] | None = None,
 ) -> go.Figure:
-    """reference_lines: optional (value, label, color) threshold lines —
+    """zero_line: True always draws (and so always includes) the zero
+    baseline — right for growth rates. "auto" draws it only when the data
+    actually crosses zero — right for levels like yields, where forcing
+    zero into view would flatten the lines against the top of the plot.
+
+    reference_lines: optional (value, label, color) threshold lines —
     e.g. labeled bands for a ratio chart. Drawn dashed with an inline
     annotation rather than relying on color alone (status colors are
     reserved and always paired with a label, never color-only).
+
+    derived: {derived label: parent label} for series computed from another
+    one on the same chart (e.g. a moving average). A derived series is
+    drawn dashed in its parent's color instead of taking the next hue, so
+    it reads as "the same thing, smoothed" rather than as a new entity.
     """
+    # Only pair a series with a parent that is actually on this chart.
+    derived = {label: parent for label, parent in (derived or {}).items() if parent in series_dict}
     fig = go.Figure()
-    for i, (label, series) in enumerate(series_dict.items()):
-        color = CATEGORICAL_ORDER[i % len(CATEGORICAL_ORDER)]
+    colors: dict[str, str] = {}
+    for label in series_dict:
+        if label not in derived:
+            colors[label] = CATEGORICAL_ORDER[len(colors) % len(CATEGORICAL_ORDER)]
+    for label, series in series_dict.items():
+        is_derived = label in derived
+        color = colors[derived[label]] if is_derived else colors[label]
         clean = series.dropna()
         fig.add_trace(
             go.Scatter(
@@ -94,11 +136,11 @@ def multi_line_chart(
                 y=clean.values,
                 mode="lines",
                 name=legend_label(label, series, freq, unit),
-                line=dict(width=2, color=color),
+                line=dict(width=1.5 if is_derived else 2, color=color, dash="dash" if is_derived else "solid"),
                 hovertemplate=_hover_fmt(unit) + "<extra>" + label + "</extra>",
             )
         )
-    if zero_line:
+    if zero_line is True or (zero_line == "auto" and _spans_zero(list(series_dict.values()))):
         fig.add_hline(y=0, line_width=1, line_color=ZERO_LINE_COLOR)
     for value, label, color in reference_lines or []:
         fig.add_hline(
@@ -112,7 +154,9 @@ def multi_line_chart(
         )
     fig.update_layout(**BASE_LAYOUT)
     fig.update_xaxes(**_axis_style())
-    fig.update_yaxes(**_axis_style(title=y_title))
+    fig.update_yaxes(**_axis_style(title=y_title, unit=unit))
+    if y_range is not None:
+        fig.update_yaxes(range=list(y_range))
     _add_recession_bands(fig, recession_periods)
     return fig
 
@@ -124,6 +168,7 @@ def stacked_bar_chart(
     y_title: str | None = None,
     total_line: tuple[str, pd.Series] | None = None,
     recession_periods: RecessionPeriods | None = None,
+    y_range: tuple[float, float] | None = None,
 ) -> go.Figure:
     fig = go.Figure()
     for i, (label, series) in enumerate(series_dict.items()):
@@ -154,7 +199,9 @@ def stacked_bar_chart(
     fig.update_layout(barmode="relative", bargap=0.15, **BASE_LAYOUT)
     fig.add_hline(y=0, line_width=1, line_color=ZERO_LINE_COLOR)
     fig.update_xaxes(**_axis_style())
-    fig.update_yaxes(**_axis_style(title=y_title))
+    fig.update_yaxes(**_axis_style(title=y_title, unit=unit))
+    if y_range is not None:
+        fig.update_yaxes(range=list(y_range))
     _add_recession_bands(fig, recession_periods)
     return fig
 
@@ -200,9 +247,14 @@ def dual_axis_chart(
             hovertemplate=_hover_fmt(right_unit) + "<extra>" + right_label + "</extra>",
         )
     )
+    # The right axis picks its own round tick values and draws no grid: one
+    # grid (the left axis's) is enough, and ticks forced onto the left
+    # axis's gridlines come out as unreadable values like 78.166.
+    right_style = _axis_style(title=right_title, unit=right_unit, color=right_color)
+    right_style.update(showgrid=False, tickmode="auto", ticks="outside", tickcolor=right_color)
     fig.update_layout(
-        yaxis=_axis_style(title=left_title, color=left_color),
-        yaxis2=dict(**_axis_style(title=right_title, color=right_color), overlaying="y", side="right"),
+        yaxis=_axis_style(title=left_title, unit=left_unit, color=left_color),
+        yaxis2=dict(**right_style, overlaying="y", side="right"),
         **BASE_LAYOUT,
     )
     fig.update_xaxes(**_axis_style())
@@ -241,7 +293,7 @@ def area_chart(
         fig.add_hline(y=0, line_width=1, line_color=ZERO_LINE_COLOR)
     fig.update_layout(**BASE_LAYOUT)
     fig.update_xaxes(**_axis_style())
-    fig.update_yaxes(**_axis_style(title=y_title))
+    fig.update_yaxes(**_axis_style(title=y_title, unit=unit))
     _add_recession_bands(fig, recession_periods)
     return fig
 

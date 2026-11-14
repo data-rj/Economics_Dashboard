@@ -6,6 +6,7 @@ dependency footprint small and gives full control over caching.
 from __future__ import annotations
 
 import os
+import time
 
 import pandas as pd
 import requests
@@ -13,9 +14,29 @@ import streamlit as st
 
 from dashboard.config.settings import CACHE_TTL_SECONDS, FRED_BASE_URL
 
+# Shown only while a request is actually in flight (a cache miss), so the
+# first load of a page isn't a blank screen; cached loads show nothing.
+LOADING_MESSAGE = "Loading data from FRED…"
+
 
 class FredRequestError(RuntimeError):
     """Raised when the FRED API can't be reached or rejects the request."""
+
+
+@st.cache_resource
+def _fetch_log() -> dict:
+    return {"last_fetch": None}
+
+
+def last_fetch_time() -> float | None:
+    """Unix time of the most recent successful FRED request, if any."""
+    return _fetch_log()["last_fetch"]
+
+
+def clear_cached_data() -> None:
+    """Drop all cached data so the next page load re-requests everything."""
+    st.cache_data.clear()
+    _fetch_log()["last_fetch"] = None
 
 
 def get_api_key() -> str | None:
@@ -40,7 +61,7 @@ def _redact(text: str, api_key: str) -> str:
     return text.replace(api_key, "***") if api_key else text
 
 
-@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
+@st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=LOADING_MESSAGE)
 def _fetch_observations(series_id: str, api_key: str, observation_start: str) -> pd.DataFrame:
     params = {
         "series_id": series_id,
@@ -62,6 +83,7 @@ def _fetch_observations(series_id: str, api_key: str, observation_start: str) ->
         raise FredRequestError(_redact(f"FRED API error for {series_id} ({resp.status_code}): {detail}", api_key))
 
     payload = resp.json()
+    _fetch_log()["last_fetch"] = time.time()
     obs = payload.get("observations", [])
     df = pd.DataFrame(obs)
     if df.empty:
