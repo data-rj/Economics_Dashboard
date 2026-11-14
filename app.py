@@ -80,23 +80,27 @@ def home() -> None:
         st.page_link(page, label=f"Open {page.title} charts", icon=":material/arrow_forward:")
 
 
+# The page scripts live in views/, not pages/: Streamlit auto-discovers a
+# pages/ folder, and on the first run after a server start it resolves a
+# section URL against that instead of the navigation below, showing a
+# "Page not found" dialog over the (correct) page.
 overview = st.Page(
-    "pages/1_Economic_Overview.py", title="Economic Overview", icon="📈", url_path="economic-overview"
+    "views/1_Economic_Overview.py", title="Economic Overview", icon="📈", url_path="economic-overview"
 )
-labor = st.Page("pages/2_Labor_Market.py", title="Labor Market", icon="👷", url_path="labor-market")
-consumer = st.Page("pages/3_The_Consumer.py", title="The Consumer", icon="🛍️", url_path="the-consumer")
+labor = st.Page("views/2_Labor_Market.py", title="Labor Market", icon="👷", url_path="labor-market")
+consumer = st.Page("views/3_The_Consumer.py", title="The Consumer", icon="🛍️", url_path="the-consumer")
 corporate = st.Page(
-    "pages/4_Corporate_America.py", title="Corporate America", icon="🏢", url_path="corporate-america"
+    "views/4_Corporate_America.py", title="Corporate America", icon="🏢", url_path="corporate-america"
 )
 investment = st.Page(
-    "pages/5_Public_and_Private_Investment.py",
+    "views/5_Public_and_Private_Investment.py",
     title="Public & Private Investment",
     icon="🏗️",
     url_path="investment",
 )
-government = st.Page("pages/6_Government.py", title="Government", icon="🏛️", url_path="government")
+government = st.Page("views/6_Government.py", title="Government", icon="🏛️", url_path="government")
 prices = st.Page(
-    "pages/7_Prices_and_Monetary_Policy.py",
+    "views/7_Prices_and_Monetary_Policy.py",
     title="Prices & Monetary Policy",
     icon="💵",
     url_path="prices-monetary-policy",
