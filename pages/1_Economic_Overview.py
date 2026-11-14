@@ -56,17 +56,3 @@ render_line_section(
     y_title="YoY % change",
     sources=[s.REAL_GDP, s.GDP_POTENTIAL],
 )
-
-data, errors = loader.load_output_gap()
-render_line_section(
-    "Output Gap",
-    "output_gap",
-    data,
-    errors,
-    freq="Q",
-    unit="pct",
-    description="Real GDP less potential GDP, as a percent of potential GDP.",
-    zero_line=True,
-    y_title="% of potential GDP",
-    sources=[s.REAL_GDP, s.GDP_POTENTIAL],
-)
