@@ -59,10 +59,20 @@ def trailing_sum(series: pd.Series, window: int) -> pd.Series:
 
 
 def resample_mean(series: pd.Series, rule: str) -> pd.Series:
-    """Downsample (e.g. daily -> weekly) by averaging within each bucket."""
-    if series.empty:
-        return series
-    return series.resample(rule).mean()
+    """Downsample (e.g. daily -> weekly) by averaging within each bucket.
+
+    pandas labels each bucket by its END, so the current, still-incomplete
+    bucket would be stamped with a date in the future (the coming Sunday for
+    "W"). Stamp that last bucket with the last actual observation instead.
+    """
+    clean = series.dropna()
+    if clean.empty:
+        return clean
+    out = clean.resample(rule).mean()
+    last_obs = clean.index[-1]
+    if out.index[-1] > last_obs:
+        out = out.set_axis(out.index[:-1].append(pd.DatetimeIndex([last_obs])))
+    return out
 
 
 def ratio(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
@@ -113,6 +123,13 @@ def drop_future(series: pd.Series, as_of: pd.Timestamp | None = None) -> pd.Seri
 def align_frames(series_dict: dict[str, pd.Series]) -> pd.DataFrame:
     """Outer-join a dict of Series into one DataFrame on the date index."""
     return pd.DataFrame(series_dict)
+
+
+def net_total(series_list) -> pd.Series:
+    """Row-wise sum of component series, NaN wherever any component is
+    missing — so a "net" line never shows a partial sum as if it were whole.
+    """
+    return pd.concat(list(series_list), axis=1).sum(axis=1, skipna=False)
 
 
 def align_to_common_end(*series_list: pd.Series) -> list[pd.Series]:

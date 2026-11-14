@@ -1,8 +1,6 @@
 """FRED series IDs and non-FRED source config, grouped by dashboard section.
 
-IDs below were verified against fred.stlouisfed.org (see research notes).
-Remaining low-confidence spot: Y001RY2Q224SBEA is pattern-inferred, not
-directly confirmed — double check on FRED if that chart looks off. There is
+IDs below were verified against fred.stlouisfed.org. There is
 no clean native FRED bucket for LFPR 65+ or a combined 16-24 group, so the
 age-participation chart uses the buckets FRED actually publishes (16-19,
 25-54, 55+) rather than the originally-requested cut points.
@@ -100,9 +98,9 @@ TOTAL_MFG_INVENTORIES = "MNFCTRIMSA"
 NONRESIDENTIAL_FIXED_INVESTMENT_REAL = "PNFIC1"
 RESIDENTIAL_FIXED_INVESTMENT_REAL = "PRFIC1"
 
-# Contribution of each component to the growth of Nonresidential Fixed
-# Investment itself (BEA table 5.3.2, "RZ2" suffix) — not to overall GDP
-# growth (that would be the "RY2" siblings A009/Y033/Y001RY2Q224SBEA).
+# Contribution of each nonresidential component to the % change in real
+# PRIVATE FIXED INVESTMENT (BEA table 5.3.2, "RZ2" suffix) — not to overall
+# GDP growth (that would be the "RY2" siblings A009/Y033/Y001RY2Q224SBEA).
 INVESTMENT_CONTRIB_STRUCTURES = "B009RZ2Q224SBEA"
 INVESTMENT_CONTRIB_EQUIPMENT = "Y033RZ2Q224SBEA"
 INVESTMENT_CONTRIB_IP_PRODUCTS = "Y001RZ2Q224SBEA"
