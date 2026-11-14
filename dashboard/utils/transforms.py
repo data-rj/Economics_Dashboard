@@ -113,3 +113,21 @@ def drop_future(series: pd.Series, as_of: pd.Timestamp | None = None) -> pd.Seri
 def align_frames(series_dict: dict[str, pd.Series]) -> pd.DataFrame:
     """Outer-join a dict of Series into one DataFrame on the date index."""
     return pd.DataFrame(series_dict)
+
+
+def align_to_common_end(*series_list: pd.Series) -> list[pd.Series]:
+    """Trim every series to the earliest "last available date" among them,
+    so a multi-series comparison chart's lines all end on the same period
+    instead of whichever series happens to have the most recent data point.
+
+    Needed where two series nominally cover the same periods but one runs
+    ahead of the other in practice — e.g. CBO Potential GDP is a smooth
+    projection with a value for the current quarter already, while Real GDP
+    (actual) lags behind by the usual ~1-month release delay, so without
+    this the two lines visibly end at different quarters.
+    """
+    non_empty = [series.dropna() for series in series_list if not series.dropna().empty]
+    if not non_empty:
+        return list(series_list)
+    common_end = min(series.index.max() for series in non_empty)
+    return [drop_future(series, as_of=common_end) for series in series_list]

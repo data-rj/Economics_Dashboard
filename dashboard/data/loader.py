@@ -14,6 +14,7 @@ from dashboard.data.fred_client import safe_fetch_series
 from dashboard.data.nowcasts import get_nyfed_nowcast
 from dashboard.utils.formatting import latest_value_and_period, quarter_end_month_label
 from dashboard.utils.transforms import (
+    align_to_common_end,
     diff,
     drop_future,
     moving_average,
@@ -166,20 +167,19 @@ def load_gdp_contributions() -> tuple[dict[str, pd.Series], dict[str, str]]:
 def load_gdp_actual_vs_potential() -> tuple[dict[str, pd.Series], dict[str, str]]:
     real_gdp, e1 = _fetch(s.REAL_GDP)
     potential, e2 = _fetch(s.GDP_POTENTIAL)
+    real_yoy = yoy_pct(real_gdp, "Q")
+    # Potential GDP is a smooth CBO projection with a value for the current
+    # quarter already; Real GDP (actual) lags behind by the usual release
+    # delay. Without aligning them, the two lines visibly end at different
+    # quarters even though drop_future() already strips CBO's future years.
+    potential_yoy = drop_future(yoy_pct(potential, "Q"))
+    real_yoy, potential_yoy = align_to_common_end(real_yoy, potential_yoy)
     data = {
-        "Real GDP (Actual) YoY%": yoy_pct(real_gdp, "Q"),
-        "Potential GDP (CBO) YoY%": drop_future(yoy_pct(potential, "Q")),
+        "Real GDP (Actual) YoY%": real_yoy,
+        "Potential GDP (CBO) YoY%": potential_yoy,
     }
     errors = {"Real GDP (Actual) YoY%": e1, "Potential GDP (CBO) YoY%": e2}
     return data, errors
-
-
-def load_output_gap() -> tuple[dict[str, pd.Series], dict[str, str]]:
-    real_gdp, e1 = _fetch(s.REAL_GDP)
-    potential, e2 = _fetch(s.GDP_POTENTIAL)
-    potential = drop_future(potential)
-    gap = pct_of(real_gdp - potential, potential)
-    return {"Output Gap (% of Potential GDP)": gap}, {"Output Gap (% of Potential GDP)": e1 or e2}
 
 
 # ---------------- Labor Market ----------------
@@ -743,6 +743,10 @@ def load_gov_consumption_yoy() -> tuple[dict[str, pd.Series], dict[str, str]]:
 def load_federal_outlays_receipts() -> tuple[dict[str, pd.Series], dict[str, str]]:
     receipts, e1 = _fetch(s.FEDERAL_RECEIPTS)
     outlays, e2 = _fetch(s.FEDERAL_OUTLAYS)
+    # Align to a common last quarter — one series occasionally updates on
+    # FRED a cycle ahead of the other, which otherwise shows the two lines
+    # ending at different quarters.
+    receipts, outlays = align_to_common_end(receipts, outlays)
     return {"Federal Receipts": receipts, "Federal Outlays": outlays}, {
         "Federal Receipts": e1,
         "Federal Outlays": e2,
