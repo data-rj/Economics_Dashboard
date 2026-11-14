@@ -267,10 +267,19 @@ def load_labor_kpis() -> list[dict]:
 def load_unemployment_rates() -> tuple[dict[str, pd.Series], dict[str, str]]:
     unrate, e1 = _fetch(s.UNRATE)
     u6, e2 = _fetch(s.U6RATE)
-    return {"Unemployment Rate (U-3)": unrate, "Broader Unemployment (U-6)": u6}, {
-        "Unemployment Rate (U-3)": e1,
-        "Broader Unemployment (U-6)": e2,
+    data = {
+        "Unemployment Rate (U-3)": unrate,
+        "Unemployment Rate (U-3) 3-Mo Avg": moving_average(unrate, 3),
+        "Broader Unemployment (U-6)": u6,
+        "Broader Unemployment (U-6) 3-Mo Avg": moving_average(u6, 3),
     }
+    errors = {
+        "Unemployment Rate (U-3)": e1,
+        "Unemployment Rate (U-3) 3-Mo Avg": e1,
+        "Broader Unemployment (U-6)": e2,
+        "Broader Unemployment (U-6) 3-Mo Avg": e2,
+    }
+    return data, errors
 
 
 def load_payrolls_change() -> tuple[pd.Series, pd.Series, str | None]:
