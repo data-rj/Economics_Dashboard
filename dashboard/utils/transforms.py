@@ -35,6 +35,17 @@ def window_annualized_pct(series: pd.Series, freq: str, window: int) -> pd.Serie
     periods = PERIODS_PER_YEAR[freq]
     return ((series / series.shift(window)) ** (periods / window) - 1) * 100
 
+
+def log_annualized_pct(series: pd.Series, freq: str, window: int) -> pd.Series:
+    """Annualized log change over `window` periods:
+    (periods_per_year / window) * 100 * ln(x_t / x_{t-window}) — e.g. 200 *
+    ln(x_t / x_{t-2}) for two quarters or six months. Expects a regular
+    index (no skipped periods), so shift(window) is `window` periods back.
+    """
+    periods = PERIODS_PER_YEAR[freq]
+    return (periods / window) * 100 * np.log(series / series.shift(window))
+
+
 def diff(series: pd.Series, periods: int = 1) -> pd.Series:
     return series.diff(periods)
 
@@ -94,19 +105,6 @@ def to_quarter_end(series: pd.Series) -> pd.Series:
     if series.empty:
         return series
     return series.set_axis(series.index.to_period("Q").end_time.normalize())
-
-
-def to_month_end(series: pd.Series) -> pd.Series:
-    """Relabel a monthly series' index from FRED's month-START convention
-    (e.g. 2025-09-01) to the month's last calendar day (2025-09-30), for
-    display only. Values and ordering are unchanged. Unlike to_quarter_end,
-    this isn't applied dashboard-wide — only where a chart explicitly opts
-    in, since most monthly charts' month-start dates aren't otherwise
-    reported as wrong.
-    """
-    if series.empty:
-        return series
-    return series.set_axis(series.index.to_period("M").end_time.normalize())
 
 
 def drop_future(series: pd.Series, as_of: pd.Timestamp | None = None) -> pd.Series:

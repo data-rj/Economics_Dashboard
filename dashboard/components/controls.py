@@ -13,7 +13,7 @@ from dashboard.components.charts import (
 from dashboard.config.sources import fred_source_caption
 from dashboard.data.recessions import load_recession_periods
 from dashboard.utils.daterange import clip_to_range, range_control
-from dashboard.utils.transforms import to_month_end, to_quarter_end
+from dashboard.utils.transforms import to_quarter_end
 
 RECESSION_NOTE = "Shaded areas: NBER recessions."
 CLIPPED_NOTE = "Y-axis clipped to the typical range, so extreme values run off-scale — switch on “Full y-range” to see them."
@@ -53,15 +53,9 @@ def clip_series_dict(
     return clipped
 
 
-def _clip_series(
-    series: pd.Series, range_label: str, freq: str | None = None, month_end: bool = False
-) -> pd.Series:
+def _clip_series(series: pd.Series, range_label: str, freq: str | None = None) -> pd.Series:
     clipped = clip_to_range(series, range_label)
-    if freq == "Q":
-        return to_quarter_end(clipped)
-    if freq == "M" and month_end:
-        return to_month_end(clipped)
-    return clipped
+    return to_quarter_end(clipped) if freq == "Q" else clipped
 
 
 def _recession_periods_in_range(series_list: list[pd.Series]):
@@ -243,37 +237,13 @@ def render_dual_axis_section(
     left_title: str | None = None,
     right_title: str | None = None,
     sources: list[str] | str | None = None,
-    left_freq: str | None = None,
-    right_freq: str | None = None,
-    left_month_end: bool = False,
-    right_month_end: bool = False,
 ) -> None:
-    """left_freq/right_freq: override `freq` for date-range clipping and the
-    quarter-end shift on one side only, for a mixed-cadence pairing (e.g.
-    M2 YoY% is monthly but M2 Velocity is quarterly). `freq` alone still
-    drives the chart's hover/legend period formatting for both sides — a
-    quarter-end-shifted date formatted with freq="M" already reads as e.g.
-    "Jun 2026", matching the quarter-end convention used on KPI tiles.
-
-    left_month_end/right_month_end: opt a monthly ("M") side into the same
-    month-start -> month-end relabeling, for a specific chart that asks for
-    it. Unlike the quarter-end shift, this isn't dashboard-wide, so it's an
-    explicit per-chart flag rather than automatic for every "M" series.
-    """
     with st.container(border=True, height="stretch"):
         range_label = chart_header(title, key, description)
         left_label, left_series, left_unit = data["left"]
         right_label, right_series, right_unit = data["right"]
-        left_clipped = (
-            left_label,
-            _clip_series(left_series, range_label, left_freq or freq, left_month_end),
-            left_unit,
-        )
-        right_clipped = (
-            right_label,
-            _clip_series(right_series, range_label, right_freq or freq, right_month_end),
-            right_unit,
-        )
+        left_clipped = (left_label, _clip_series(left_series, range_label, freq), left_unit)
+        right_clipped = (right_label, _clip_series(right_series, range_label, freq), right_unit)
         notes: list[str] = []
         if not left_series.dropna().empty or not right_series.dropna().empty:
             recession_periods = _recession_periods_in_range([left_clipped[1], right_clipped[1]])

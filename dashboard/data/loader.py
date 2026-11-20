@@ -17,6 +17,7 @@ from dashboard.utils.transforms import (
     align_to_common_end,
     diff,
     drop_future,
+    log_annualized_pct,
     moving_average,
     pct_of,
     period_annualized_pct,
@@ -883,14 +884,48 @@ def load_interest_rates() -> tuple[dict[str, pd.Series], dict[str, str]]:
     }
 
 
-def load_m2() -> tuple[dict, dict[str, str]]:
+IMPULSE_INFLATIONARY_BREAKOUT = 7.5
+IMPULSE_DEFLATIONARY_COOLING = 1.5
+IMPULSE_LABEL = "Monetary Impulse (2Q Annualized)"
+CORE_PCE_6M_LABEL = "Core PCE (6-Mo Annualized)"
+
+
+def load_monetary_impulse() -> tuple[dict[str, pd.Series], dict[str, str]]:
+    """Quarterly monetary impulse vs. Core PCE inflation, at quarter-ends.
+
+    Impulse = 200 * ln[(M2 * V)_q / (M2 * V)_{q-2}], the annualized
+    two-quarter change in M2 times its velocity. Velocity (M2V) is only
+    published quarterly, as nominal GDP / that quarter's AVERAGE M2, so M2
+    is averaged over the quarter too — and a quarter counts only once all
+    three months of M2 and its velocity are published.
+
+    Core PCE is the six-month change to each quarter-end month (e.g. Sep vs.
+    Mar), annualized the same way (200 * ln), so the two lines compare
+    directly. Only quarters where both values exist are kept.
+    """
     m2, e1 = _fetch(s.M2_MONEY_SUPPLY)
     velocity, e2 = _fetch(s.M2_VELOCITY)
-    data = {
-        "left": ("M2 Money Supply YoY%", yoy_pct(m2, "M"), "pct"),
-        "right": ("M2 Velocity", velocity, "ratio"),
-    }
-    return data, {"M2 Money Supply YoY%": e1, "M2 Velocity": e2}
+    core_pce, e3 = _fetch(s.CORE_PCE_DEFLATOR)
+    errors = {IMPULSE_LABEL: e1 or e2, CORE_PCE_6M_LABEL: e3}
+
+    m2, velocity, core_pce = m2.dropna(), velocity.dropna(), core_pce.dropna()
+    if m2.empty or velocity.empty or core_pce.empty:
+        empty = pd.Series(dtype=float)
+        return {IMPULSE_LABEL: empty, CORE_PCE_6M_LABEL: empty}, errors
+
+    by_quarter = m2.resample("QS")
+    m2_quarterly = by_quarter.mean()[by_quarter.count() == 3]
+    # asfreq fills any skipped quarter/month with NaN so shift() steps back
+    # by calendar periods, not rows.
+    nominal_spending = (m2_quarterly * velocity).dropna().asfreq("QS")
+    impulse = log_annualized_pct(nominal_spending, "Q", 2)
+
+    core_pce_6m = log_annualized_pct(core_pce.asfreq("MS"), "M", 6)
+    quarter_end_months = core_pce_6m[core_pce_6m.index.month % 3 == 0]
+    core_pce_quarterly = quarter_end_months.set_axis(quarter_end_months.index.to_period("Q").start_time)
+
+    both = pd.concat([impulse, core_pce_quarterly], axis=1, keys=[IMPULSE_LABEL, CORE_PCE_6M_LABEL]).dropna()
+    return {label: both[label] for label in both.columns}, errors
 
 
 def load_fed_balance_sheet() -> tuple[dict[str, pd.Series], dict[str, str]]:
