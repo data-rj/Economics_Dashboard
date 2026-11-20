@@ -1,8 +1,9 @@
 import streamlit as st
 
-from dashboard.components.controls import ChartGrid, render_dual_axis_section, render_line_section
+from dashboard.components.controls import ChartGrid, render_line_section
 from dashboard.components.kpi import kpi_row
 from dashboard.config import series as s
+from dashboard.config.settings import STATUS
 from dashboard.data import loader
 
 st.title("Prices & Monetary Policy")
@@ -72,19 +73,25 @@ with grid.cell():
     )
 
 with grid.cell():
-    data, errors = loader.load_m2()
-    render_dual_axis_section(
-        "M2 Money Supply & Velocity",
-        "m2",
+    data, errors = loader.load_monetary_impulse()
+    render_line_section(
+        "Monetary Impulse vs. Core PCE Inflation",
+        "monetary_impulse",
         data,
         errors,
-        freq="M",
-        right_freq="Q",
-        left_month_end=True,
-        description="M2 Velocity (GDP ÷ M2) is published quarterly; M2 Money Supply YoY% is monthly.",
-        left_title="M2 YoY %",
-        right_title="M2 Velocity",
-        sources=[s.M2_MONEY_SUPPLY, s.M2_VELOCITY],
+        freq="Q",
+        unit="pct",
+        description="Impulse: 200 × ln[(M2 × Velocity) ÷ (M2 × Velocity) two quarters earlier], "
+        "using quarterly-average M2. Core PCE: 6-month change to each quarter-end month, "
+        "annualized the same way. Quarterly, shown only where both are published.",
+        zero_line="auto",
+        y_title="Annualized %",
+        sources=[s.M2_MONEY_SUPPLY, s.M2_VELOCITY, s.CORE_PCE_DEFLATOR],
+        reference_lines=[
+            (loader.IMPULSE_INFLATIONARY_BREAKOUT, "Inflationary Breakout (7.5%)", STATUS["critical"]),
+            (loader.IMPULSE_DEFLATIONARY_COOLING, "Deflationary Cooling (1.5%)", STATUS["warning"]),
+        ],
+        clip_outliers=True,
     )
 
 with grid.cell():

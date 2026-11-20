@@ -49,8 +49,8 @@ streamlit run app.py
   recessions.
 - A handful of charts use a second y-axis (industrial production vs.
   capacity utilization, the manufacturing orders/inventories ratios, bank
-  loan growth vs. loss allowance, the inventory-to-sales ratio, federal
-  debt as % of GDP vs. % of wealth, and M2 vs. velocity) — a deliberate
+  loan growth vs. loss allowance, the inventory-to-sales ratio, and federal
+  debt as % of GDP vs. % of wealth) — a deliberate
   exception made only where the spec calls for a paired second axis; axis
   color coding keeps the two scales unambiguous and only the left axis
   draws gridlines.
